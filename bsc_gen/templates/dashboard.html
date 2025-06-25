@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h2>Dashboard</h2>
+    <p>Welcome, {{ user.username }}!</p>
+    <p>Organization: {{ organization.name }}</p>
+    <p>Your role: {% if is_admin %}Admin{% elif is_employee %}Employee{% else %}Unknown{% endif %}</p>
+    {% if is_admin %}
+        <h3>Manager/Admin Controls</h3>
+        <ul>
+            <li>Full access to dashboard features.</li>
+            <li>Edit, add, or remove data.</li>
+            <li>View reports and analytics.</li>
+        </ul>
+    {% elif is_employee %}
+        <h3>Employee View</h3>
+        <ul>
+            <li>View-only access to dashboard data.</li>
+        </ul>
+    {% else %}
+        <p>Your role is not assigned. Please contact your administrator.</p>
+    {% endif %}
+    <a href="{% url 'logout' %}">Logout</a>
+</body>
+</html> 

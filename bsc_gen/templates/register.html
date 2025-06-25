@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register</title>
+</head>
+<body>
+    <h2>Register</h2>
+    {% if messages %}
+        <ul>
+        {% for message in messages %}
+            <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <label for="username">Username:</label><br>
+        <input type="text" id="username" name="username" required><br>
+        <label for="email">Email:</label><br>
+        <input type="email" id="email" name="email" required><br>
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password" required><br>
+        <label for="password2">Confirm Password:</label><br>
+        <input type="password" id="password2" name="password2" required><br>
+        <label for="organization">Organization/Company Name:</label><br>
+        <input type="text" id="organization" name="organization" required><br>
+        <label for="role">Register as:</label><br>
+        <input type="radio" id="employee" name="role" value="employee" checked>
+        <label for="employee">Employee</label>
+        <input type="radio" id="admin" name="role" value="admin">
+        <label for="admin">Admin</label><br><br>
+        <input type="submit" value="Register">
+    </form>
+    <p>Already have an account? <a href="{% url 'login' %}">Login here</a>.</p>
+</body>
+</html> 

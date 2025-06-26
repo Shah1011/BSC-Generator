@@ -13,3 +13,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# JS
+node_modules
+package-lock.json

@@ -17,4 +17,22 @@ class UserProfile(models.Model):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
 
     def __str__(self):
-        return f"{self.user.username} ({self.role}) - {self.organization.name}" 
+        return f"{self.user.username} ({self.role}) - {self.organization.name}"
+
+class BSCEntry(models.Model):
+    PERSPECTIVE_CHOICES = [
+        ('Financial', 'Financial'),
+        ('Customer', 'Customer'),
+        ('Internal', 'Internal'),
+        ('Learning & Growth', 'Learning & Growth'),
+    ]
+    perspective = models.CharField(max_length=32, choices=PERSPECTIVE_CHOICES)
+    objective = models.CharField(max_length=255)
+    measure = models.CharField(max_length=255)
+    target = models.CharField(max_length=255)
+    actual = models.CharField(max_length=255)
+    owner = models.CharField(max_length=255, blank=True, null=True)
+    date = models.DateField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.perspective} - {self.objective}" 

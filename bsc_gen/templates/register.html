@@ -1,36 +1,58 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
     <title>Register</title>
+    <link href="{% static 'css/tailwind.build.css' %}" rel="stylesheet">
 </head>
-<body>
-    <h2>Register</h2>
-    {% if messages %}
-        <ul>
-        {% for message in messages %}
-            <li>{{ message }}</li>
-        {% endfor %}
-        </ul>
-    {% endif %}
-    <form method="post">
-        {% csrf_token %}
-        <label for="username">Username:</label><br>
-        <input type="text" id="username" name="username" required><br>
-        <label for="email">Email:</label><br>
-        <input type="email" id="email" name="email" required><br>
-        <label for="password">Password:</label><br>
-        <input type="password" id="password" name="password" required><br>
-        <label for="password2">Confirm Password:</label><br>
-        <input type="password" id="password2" name="password2" required><br>
-        <label for="organization">Organization/Company Name:</label><br>
-        <input type="text" id="organization" name="organization" required><br>
-        <label for="role">Register as:</label><br>
-        <input type="radio" id="employee" name="role" value="employee" checked>
-        <label for="employee">Employee</label>
-        <input type="radio" id="admin" name="role" value="admin">
-        <label for="admin">Admin</label><br><br>
-        <input type="submit" value="Register">
-    </form>
-    <p>Already have an account? <a href="{% url 'login' %}">Login here</a>.</p>
+<body class="bg-blue-50 min-h-screen flex items-center justify-center">
+    <div class="mx-auto max-w-lg bg-white rounded-lg shadow-lg p-8">
+        <h2 class="text-2xl font-bold text-blue-700 mb-6 text-center">Register</h2>
+        {% if messages %}
+            <ul class="mb-4">
+                {% for message in messages %}
+                    <li class="text-sm {% if message.tags == 'success' %}text-green-600{% else %}text-red-600{% endif %}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label for="username" class="block text-gray-700 font-semibold mb-1">Username</label>
+                <input type="text" id="username" name="username" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+                <label for="email" class="block text-gray-700 font-semibold mb-1">Email</label>
+                <input type="email" id="email" name="email" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+                <label for="password" class="block text-gray-700 font-semibold mb-1">Password</label>
+                <input type="password" id="password" name="password" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+                <label for="password2" class="block text-gray-700 font-semibold mb-1">Confirm Password</label>
+                <input type="password" id="password2" name="password2" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+                <label for="organization" class="block text-gray-700 font-semibold mb-1">Organization/Company Name</label>
+                <input type="text" id="organization" name="organization" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <div>
+                <span class="block text-gray-700 font-semibold mb-1">Register as:</span>
+                <div class="flex gap-4">
+                    <label class="inline-flex items-center">
+                        <input type="radio" id="employee" name="role" value="employee" checked class="form-radio text-blue-600">
+                        <span class="ml-2">Employee</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" id="admin" name="role" value="admin" class="form-radio text-blue-600">
+                        <span class="ml-2">Admin</span>
+                    </label>
+                </div>
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700">Register</button>
+        </form>
+        <p class="mt-4 text-center text-sm text-gray-600">Already have an account? <a href="{% url 'login' %}" class="text-blue-600 hover:underline font-semibold">Login here</a>.</p>
+    </div>
 </body>
 </html> 

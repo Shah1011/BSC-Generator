@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from .views import hello_world, register, login_view, logout_view, dashboard  # Import the new views
+from .views import register, login_view, logout_view, dashboard, bsc_data_api, bsc_detailed_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,5 +24,7 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
     path('dashboard/', dashboard, name='dashboard'),
-    path('', hello_world, name='hello_world'),
+    path('api/bsc-data/', bsc_data_api, name='bsc_data_api'),
+    path('bsc-detailed/', bsc_detailed_view, name='bsc_detailed'),
+    path('', dashboard, name='home')
 ]

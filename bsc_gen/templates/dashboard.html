@@ -2,98 +2,134 @@
 {% load bsc_extras %}
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Dashboard</title>
     <link href="{% static 'css/tailwind.build.css' %}" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow">
-        <div class="max-w-5xl mx-auto flex justify-between items-center h-full py-6">
-            <a href="/" class="text-2xl font-bold text-blue-700">Dashboard</a>
-            <div class="flex gap-2 space-x-6 p-6">
-                <a href="#" class="text-gray-700 hover:text-blue-600 font-semibold">Profile</a>
+    <nav class="bg-white shadow mb-8">
+        <div class="mx-[26px] flex justify-between items-center h-full">
+            <a href="/" class="text-2xl font-bold text-blue-700">BSC Generator</a>
+            <div class="flex gap-2 items-center space-x-6 p-6">
+                <p class="text-sm font-semibold bg-green-300 rounded-full px-3 py-1">{% if is_admin %}Admin{% elif is_employee %}Employee{% endif %}</p>
+                <div class="flex items-center gap-2">
+                    <img src="{% static 'assets/abstract.jpg' %}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-blue-400 object-cover" />
+                    <a href="#" class="text-gray-700 hover:text-blue-600 font-semibold">{{ user.username }}</a>
+                </div>
                 <a href="{% url 'logout' %}" class="text-red-600 hover:underline font-semibold">Logout</a>
             </div>
         </div>
     </nav>
-    <div class="max-w-5xl mx-auto py-8 px-4">
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <p class="text-lg font-semibold mb-1">Welcome, <span class="text-blue-700">{{ user.username }}</span>!</p>
-            <p class="mb-1">Organization: <span class="font-medium">{{ organization.name }}</span></p>
-            <p>Your role: <span class="font-medium">{% if is_admin %}Admin{% elif is_employee %}Employee{% else %}Unknown{% endif %}</span></p>
-        </div>
-        {% if is_admin %}
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-xl font-bold text-blue-600 mb-2">Manager/Admin Controls</h3>
+    <div class="mx-[150px]">
+            <p class="mb-4 font-bold text-xl text-gray-700"><span class="text-blue-600 hover:underline cursor-default">{{ organization.name }}'s</span> Balanced Scorecard</p>
+            {% if is_admin %}
+            <div class="bg-white rounded-lg shadow p-6 mb-4">
+                <h3 class="text-lg font-bold text-blue-600 mb-2">Manager/Admin Controls</h3>
                 <ul class="list-disc list-inside mb-4 text-gray-700">
                     <li>Full access to dashboard features.</li>
-                    <li>Edit, add, or remove data.</li>
                     <li>View reports and analytics.</li>
                 </ul>
                 <h4 class="text-lg font-semibold mb-2">Upload BSC CSV/Excel Data</h4>
-                <p class="text-sm text-gray-500 mb-2"><em>Required columns: perspective, objective, measure, target, actual. Optional: owner, date.</em></p>
+                <p class="text-sm text-gray-500 mb-2"><em>Required columns: perspective, objective, measure, target,
+                        actual. Optional: owner, date.</em></p>
                 {% if messages %}
-                    <ul class="mb-2">
-                        {% for message in messages %}
-                            <li class="text-sm {% if message.tags == 'success' %}text-green-600{% else %}text-red-600{% endif %}">{{ message }}</li>
-                        {% endfor %}
-                    </ul>
+                <ul class="mb-2">
+                    {% for message in messages %}
+                    <li
+                        class="text-sm {% if message.tags == 'success' %}text-green-600{% else %}text-red-600{% endif %}">
+                        {{ message }}</li>
+                    {% endfor %}
+                </ul>
                 {% endif %}
                 <form method="post" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-center gap-2">
                     {% csrf_token %}
-                    <input type="file" name="data_file" accept=".csv,.xlsx,.xls" required class="block w-full text-sm text-gray-700 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-semibold">Upload</button>
+                    <input type="file" name="data_file" accept=".csv,.xlsx,.xls" required
+                        class="block w-full text-sm text-gray-700 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button type="submit"
+                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-semibold">Upload</button>
                 </form>
             </div>
-        {% elif is_employee %}
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
+            {% elif is_employee %}
+            <div class="bg-white rounded-lg shadow p-6 mb-4">
                 <h3 class="text-xl font-bold text-blue-600 mb-2">Employee View</h3>
                 <ul class="list-disc list-inside text-gray-700">
                     <li>View-only access to dashboard data.</li>
                 </ul>
             </div>
-        {% else %}
+            {% else %}
             <div class="bg-white rounded-lg shadow p-6 mb-6">
                 <p>Your role is not assigned. Please contact your administrator.</p>
             </div>
-        {% endif %}
-        {% if is_admin or is_employee %}
-            <div class="flex justify-end mb-4">
-                <button id="toggle-bsc-detailed" type="button" class="inline-block bg-blue-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-blue-700 transition">View Detailed BSC Entries</button>
+            {% endif %}
+            {% if is_admin or is_employee %}
+                {% if bsc_batches and bsc_batches|length > 0 %}
+            <div class="flex items-center gap-2 mb-4">
+                <button id="toggle-bsc-detailed" type="button"
+                    class="inline-block bg-blue-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-blue-700 transition">
+                    View Detailed BSC Entries</button>
+                {% if is_admin %}
+                <form id="delete-bsc-form" method="post" action="{% url 'delete_bsc_data' %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                        class="bg-green-500 hover:bg-green-900 text-white font-semibold px-4 py-2 rounded">
+                        Update BSC Data
+                    </button>
+                    <button type="submit"
+                        onclick="return confirm('Are you sure you want to delete all BSC data? This action cannot be undone.');"
+                        class="bg-red-700 hover:bg-red-900 text-white font-semibold px-4 py-2 rounded ml-1">
+                        Delete BSC Data
+                    </button>
+                </form>
+                {% endif %}
+            {% endif %}
             </div>
-            <div id="bsc-detailed-section" class="hidden mb-8">
-                <div class="max-w-5xl mx-auto py-8 px-4">
-                    <h2 class="text-3xl font-bold text-blue-700 mb-6">Detailed BSC View</h2>
-                    <div class="mb-6">
-                        <div class="flex space-x-2" id="bsc-tabs">
-                            <button class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none" data-perspective="Financial">Financial</button>
-                            <button class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none" data-perspective="Customer">Customer</button>
-                            <button class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none" data-perspective="Internal">Internal</button>
-                            <button class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none" data-perspective="Learning & Growth">Learning & Growth</button>
-                        </div>
-                    </div>
-                    <div id="bsc-tab-content">
-                        <!-- Tab content will be rendered here -->
+
+        <div id="bsc-detailed-section" class="hidden mb-8">
+            <div class="max-w-5xl mx-auto py-8 px-4">
+                <h2 class="text-3xl font-bold text-blue-700 mb-6">Detailed BSC View</h2>
+                <div class="mb-6">
+                    <div class="flex space-x-2" id="bsc-tabs">
+                        <button
+                            class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none"
+                            data-perspective="Financial">Financial</button>
+                        <button
+                            class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none"
+                            data-perspective="Customer">Customer</button>
+                        <button
+                            class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none"
+                            data-perspective="Internal">Internal</button>
+                        <button
+                            class="tab-btn px-4 py-2 rounded-t bg-blue-100 text-blue-700 font-semibold focus:outline-none"
+                            data-perspective="Learning & Growth">Learning & Growth</button>
                     </div>
                 </div>
-                <script>
+                <div id="bsc-tab-content">
+                    <!-- Tab content will be rendered here -->
+                </div>
+            </div>
+            <script>
                 var bscData = {
                     'Financial': [],
                     'Customer': [],
                     'Internal': [],
                     'Learning & Growth': []
                 };
-                {% for entry in bsc_entries %}
-                bscData["{{ entry.perspective|escapejs }}"].push({
-                    objective: "{{ entry.objective|escapejs }}",
-                    measure: "{{ entry.measure|escapejs }}",
-                    target: parseFloat("{{ entry.target|default:'0'|escapejs }}"),
-                    actual: parseFloat("{{ entry.actual|default:'0'|escapejs }}"),
-                    owner: "{{ entry.owner|escapejs }}",
-                    date: "{{ entry.date }}"
-                });
-                {% endfor %}
+                {% if bsc_batches and bsc_batches|length > 0 %}
+                  {% with last_batch=bsc_batches|last %}
+                    {% for entry in last_batch.entries %}
+                      bscData["{{ entry.perspective|escapejs }}"].push({
+                          objective: "{{ entry.objective|escapejs }}",
+                          measure: "{{ entry.measure|escapejs }}",
+                          target: parseFloat("{{ entry.target|default:'0'|escapejs }}"),
+                          actual: parseFloat("{{ entry.actual|default:'0'|escapejs }}"),
+                          owner: "{{ entry.owner|escapejs }}",
+                          date: "{{ entry.date }}"
+                      });
+                    {% endfor %}
+                  {% endwith %}
+                {% endif %}
                 function renderTab(perspective) {
                     var data = bscData[perspective] || [];
                     var html = '';
@@ -117,7 +153,7 @@
                             '</tr>' +
                             '</thead>' +
                             '<tbody class="bg-white divide-y divide-gray-100">' +
-                            data.map(function(entry) {
+                            data.map(function (entry) {
                                 return '<tr>' +
                                     '<td class="px-3 py-2">' + entry.objective + '</td>' +
                                     '<td class="px-3 py-2">' + entry.measure + '</td>' +
@@ -125,7 +161,17 @@
                                     '<td class="px-3 py-2">' + entry.actual + '</td>' +
                                     '<td class="px-3 py-2">' + entry.owner + '</td>' +
                                     '<td class="px-3 py-2">' + entry.date + '</td>' +
-                                    '<td class="px-3 py-2 text-center">' + (entry.actual >= entry.target ? '<span class="inline-block text-green-600 text-lg font-bold">&#10004;</span>' : '<span class="inline-block text-red-600 text-lg font-bold">&#10008;</span>') + '</td>' +
+                                    '<td class="px-3 py-2 text-center">' +
+                                    (function () {
+                                        if (entry.actual >= entry.target) {
+                                            return '<span class="inline-block w-4 h-4 rounded-full bg-green-500 border-2 border-green-700" title="Good"></span>';
+                                        } else if (entry.actual >= 0.8 * entry.target) {
+                                            return '<span class="inline-block w-4 h-4 rounded-full bg-yellow-400 border-2 border-yellow-600" title="Moderate"></span>';
+                                        } else {
+                                            return '<span class="inline-block w-4 h-4 rounded-full bg-red-500 border-2 border-red-700" title="Bad"></span>';
+                                        }
+                                    })() +
+                                    '</td>' +
                                     '</tr>';
                             }).join('') +
                             '</tbody>' +
@@ -138,10 +184,10 @@
                         new Chart(ctx, {
                             type: 'bar',
                             data: {
-                                labels: data.map(function(e) { return e.objective; }),
+                                labels: data.map(function (e) { return e.objective; }),
                                 datasets: [
-                                    { label: 'Actual', data: data.map(function(e) { return e.actual; }), backgroundColor: 'rgba(34,197,94,0.7)' },
-                                    { label: 'Target', data: data.map(function(e) { return e.target; }), backgroundColor: 'rgba(59,130,246,0.7)' }
+                                    { label: 'Actual', data: data.map(function (e) { return e.actual; }), backgroundColor: 'rgba(34,197,94,0.7)' },
+                                    { label: 'Target', data: data.map(function (e) { return e.target; }), backgroundColor: 'rgba(59,130,246,0.7)' }
                                 ]
                             },
                             options: {
@@ -151,11 +197,11 @@
                         });
                     }
                 }
-                document.addEventListener('DOMContentLoaded', function() {
+                document.addEventListener('DOMContentLoaded', function () {
                     var tabBtns = document.querySelectorAll('.tab-btn');
                     var activeTab = 'Financial';
                     function setActive(tab) {
-                        tabBtns.forEach(function(btn) {
+                        tabBtns.forEach(function (btn) {
                             if (btn.dataset.perspective === tab) {
                                 btn.classList.add('bg-white', 'border-b-2', 'border-blue-600');
                                 btn.classList.remove('bg-blue-100');
@@ -165,8 +211,8 @@
                             }
                         });
                     }
-                    tabBtns.forEach(function(btn) {
-                        btn.addEventListener('click', function() {
+                    tabBtns.forEach(function (btn) {
+                        btn.addEventListener('click', function () {
                             activeTab = this.dataset.perspective;
                             setActive(activeTab);
                             renderTab(activeTab);
@@ -176,7 +222,7 @@
                     renderTab(activeTab);
                 });
                 // Toggle logic
-                document.getElementById('toggle-bsc-detailed').addEventListener('click', function() {
+                document.getElementById('toggle-bsc-detailed').addEventListener('click', function () {
                     var section = document.getElementById('bsc-detailed-section');
                     if (section.classList.contains('hidden')) {
                         section.classList.remove('hidden');
@@ -186,81 +232,93 @@
                         this.textContent = 'View Detailed BSC Entries';
                     }
                 });
-                </script>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-xl font-bold text-blue-600 mb-4">BSC Key Performance Indicators (KPIs)</h3>
-                {% if bsc_entries and bsc_entries|length > 0 %}
-                <div class="overflow-x-auto">
-                    <table class="min-w-full border border-gray-200 rounded-lg overflow-hidden">
-                        <thead class="bg-blue-100">
-                            <tr>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Perspective</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Objective</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Measure</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Target</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Actual</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Owner</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Date</th>
-                                <th class="px-3 py-2 text-center text-xs font-semibold text-blue-700">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-100">
-                        {% for entry in bsc_entries %}
-                            <tr>
-                                <td class="px-3 py-2">{{ entry.perspective }}</td>
-                                <td class="px-3 py-2">{{ entry.objective }}</td>
-                                <td class="px-3 py-2">{{ entry.measure }}</td>
-                                <td class="px-3 py-2">{{ entry.target }}</td>
-                                <td class="px-3 py-2">{{ entry.actual }}</td>
-                                <td class="px-3 py-2">{{ entry.owner }}</td>
-                                <td class="px-3 py-2">{{ entry.date }}</td>
-                                <td class="px-3 py-2 text-center">
-                                    {% with actual=entry.actual|floatval target=entry.target|floatval %}
-                                        {% if actual >= target %}
-                                            <span class="inline-block text-green-600 text-lg font-bold">&#10004;</span>
+            </script>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            {% if bsc_batches and bsc_batches|length > 0 %}
+            <div class="space-y-4">
+                {% for batch in bsc_batches %}
+                <div class="bg-white rounded-lg shadow p-4">
+                    <button type="button" class="w-full text-left font-bold text-blue-700" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        Batch {{ batch.batch_id }} — Uploaded: {{ batch.upload_time|date:"Y-m-d H:i" }}
+                    </button>
+                    <div class="mt-2 hidden">
+                        <table class="min-w-full border border-gray-200 rounded-lg overflow-hidden">
+                            <thead class="bg-blue-100">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Perspective</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Objective</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Measure</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Target</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Actual</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Owner</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Date</th>
+                                    <th class="px-3 py-2 text-center text-xs font-semibold text-blue-700">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-100">
+                                {% for entry in batch.entries %}
+                                <tr>
+                                    <td class="px-3 py-2">{{ entry.perspective }}</td>
+                                    <td class="px-3 py-2">{{ entry.objective }}</td>
+                                    <td class="px-3 py-2">{{ entry.measure }}</td>
+                                    <td class="px-3 py-2">{{ entry.target }}</td>
+                                    <td class="px-3 py-2">{{ entry.actual }}</td>
+                                    <td class="px-3 py-2">{{ entry.owner }}</td>
+                                    <td class="px-3 py-2">{{ entry.date }}</td>
+                                    <td class="px-3 py-2 text-center">
+                                        {% if entry.status == 'good' %}
+                                        <span class="inline-block w-4 h-4 rounded-full bg-green-500 border-2 border-green-700" title="Good"></span>
+                                        {% elif entry.status == 'moderate' %}
+                                        <span class="inline-block w-4 h-4 rounded-full bg-yellow-400 border-2 border-yellow-600" title="Moderate"></span>
                                         {% else %}
-                                            <span class="inline-block text-red-600 text-lg font-bold">&#10008;</span>
+                                        <span class="inline-block w-4 h-4 rounded-full bg-red-500 border-2 border-red-700" title="Bad"></span>
                                         {% endif %}
-                                    {% endwith %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                {% else %}
-                    <p class="text-gray-500">No BSC entries found for your organization.</p>
-                {% endif %}
-                <div class="mt-8">
-                    <canvas id="bscChart" width="800" height="400"></canvas>
-                </div>
-                <script>
-                fetch("{% url 'bsc_data_api' %}")
-                  .then(response => response.json())
-                  .then(data => {
-                    const labels = data.entries.map(e => e.objective);
-                    const actual = data.entries.map(e => parseFloat(e.actual));
-                    const target = data.entries.map(e => parseFloat(e.target));
-                    const ctx = document.getElementById('bscChart').getContext('2d');
-                    new Chart(ctx, {
-                      type: 'bar',
-                      data: {
-                        labels: labels,
-                        datasets: [
-                          { label: 'Actual', data: actual, backgroundColor: 'rgba(34,197,94,0.7)' },
-                          { label: 'Target', data: target, backgroundColor: 'rgba(59,130,246,0.7)' }
-                        ]
-                      },
-                      options: {
-                        responsive: true,
-                        plugins: { legend: { position: 'top' }, title: { display: true, text: 'BSC KPIs: Actual vs Target' } }
-                      }
-                    });
-                  });
-                </script>
+                {% endfor %}
             </div>
-        {% endif %}
+            {% else %}
+            <div class="flex flex-col items-center justify-center">
+                 <img src="{% static 'assets/empty_state.svg' %}" alt="No BSC entries" width="213" height="100" />
+                 <p class="text-gray-500 text-center text-sm font-medium">No BSC entries found for your organization.</p>
+             </div>
+            {% endif %}
+            <!-- <div class="mt-8">
+                <canvas id="bscChart" width="800" height="400"></canvas>
+            </div> -->
+            <script>
+                fetch("{% url 'bsc_data_api' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        const labels = data.entries.map(e => e.objective);
+                        const actual = data.entries.map(e => parseFloat(e.actual));
+                        const target = data.entries.map(e => parseFloat(e.target));
+                        const ctx = document.getElementById('bscChart').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    { label: 'Actual', data: actual, backgroundColor: 'rgba(34,197,94,0.7)' },
+                                    { label: 'Target', data: target, backgroundColor: 'rgba(59,130,246,0.7)' }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: { legend: { position: 'top' }, title: { display: true, text: 'BSC KPIs: Actual vs Target' } }
+                            }
+                        });
+                    });
+            </script>
+        </div>
+            {% endif %}
     </div>
 </body>
+
 </html>

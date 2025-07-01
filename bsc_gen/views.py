@@ -8,6 +8,8 @@ from .models import Organization, UserProfile, BSCEntry
 import pandas as pd
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.views.decorators.http import require_POST
+from collections import defaultdict
 
 def register(request):
     if request.method == 'POST':
@@ -68,11 +70,49 @@ def dashboard(request):
 
     bsc_entries = []
     if organization:
-        bsc_entries = BSCEntry.objects.filter(owner__isnull=False, owner__exact='') | BSCEntry.objects.filter(owner__isnull=True)
-        bsc_entries = BSCEntry.objects.all() if is_admin else BSCEntry.objects.filter(owner__isnull=False, owner__exact='')
-        bsc_entries = BSCEntry.objects.filter(owner__isnull=True) | BSCEntry.objects.filter(owner__isnull=False)
         bsc_entries = BSCEntry.objects.all()
         # If you want to filter by organization, add a ForeignKey to Organization in BSCEntry and filter here
+
+    batch_map = defaultdict(list)
+    batch_times = {}
+    for entry in bsc_entries:
+        if not entry.batch_id:
+            continue  # skip entries without a batch_id
+        batch_map[entry.batch_id].append(entry)
+        if entry.batch_id not in batch_times or (entry.upload_time and entry.upload_time < batch_times[entry.batch_id]):
+            batch_times[entry.batch_id] = entry.upload_time
+
+    bsc_batches = []
+    for batch_id in sorted(batch_map.keys()):
+        entries = []
+        for entry in batch_map[batch_id]:
+            try:
+                actual = float(entry.actual)
+                target = float(entry.target)
+            except (ValueError, TypeError):
+                actual = 0.0
+                target = 0.0
+            if actual >= target:
+                status = 'good'
+            elif actual >= 0.8 * target:
+                status = 'moderate'
+            else:
+                status = 'bad'
+            entries.append({
+                'perspective': entry.perspective,
+                'objective': entry.objective,
+                'measure': entry.measure,
+                'target': entry.target,
+                'actual': entry.actual,
+                'owner': entry.owner,
+                'date': entry.date,
+                'status': status,
+            })
+        bsc_batches.append({
+            'batch_id': batch_id,
+            'upload_time': batch_times[batch_id],
+            'entries': entries
+        })
 
     if is_admin and request.method == 'POST' and 'data_file' in request.FILES:
         data_file = request.FILES['data_file']
@@ -90,6 +130,12 @@ def dashboard(request):
                 if not required_columns.issubset(df.columns):
                     messages.error(request, f"Missing required columns. Required: {', '.join(required_columns)}")
                 else:
+                    # Generate new batch_id
+                    last_batch = BSCEntry.objects.order_by('-batch_id').first()
+                    if last_batch and last_batch.batch_id and last_batch.batch_id.isdigit():
+                        new_batch_id = str(int(last_batch.batch_id) + 1).zfill(3)
+                    else:
+                        new_batch_id = '001'
                     for _, row in df.iterrows():
                         BSCEntry.objects.create(
                             perspective=row.get('perspective', ''),
@@ -98,9 +144,11 @@ def dashboard(request):
                             target=row.get('target', ''),
                             actual=row.get('actual', ''),
                             owner=row.get('owner', ''),
-                            date=row.get('date', None)
+                            date=row.get('date', None),
+                            batch_id=new_batch_id
                         )
-                    messages.success(request, f'BSC data uploaded and processed successfully! {df.shape[0]} entries added.')
+                    messages.success(request, f'BSC data uploaded and processed successfully! {df.shape[0]} entries added in batch {new_batch_id}.')
+                    return redirect('dashboard')
             except Exception as e:
                 messages.error(request, f'Error processing file: {str(e)}')
 
@@ -109,7 +157,7 @@ def dashboard(request):
         'is_admin': is_admin,
         'is_employee': is_employee,
         'organization': organization,
-        'bsc_entries': bsc_entries,
+        'bsc_batches': bsc_batches,
     })
 
 @login_required
@@ -138,3 +186,19 @@ def bsc_data_api(request):
 def bsc_detailed_view(request):
     bsc_entries = BSCEntry.objects.all()
     return render(request, 'bsc_detailed.html', {'bsc_entries': bsc_entries})
+
+@login_required
+@require_POST
+def delete_bsc_data(request):
+    user = request.user
+    try:
+        profile = user.userprofile
+        is_admin = profile.role == 'admin'
+    except UserProfile.DoesNotExist:
+        is_admin = False
+    if is_admin:
+        BSCEntry.objects.all().delete()
+        messages.success(request, 'All BSC data has been deleted.')
+    else:
+        messages.error(request, 'You are not authorized to perform this action.')
+    return redirect('dashboard')

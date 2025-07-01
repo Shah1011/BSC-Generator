@@ -33,6 +33,8 @@ class BSCEntry(models.Model):
     actual = models.CharField(max_length=255)
     owner = models.CharField(max_length=255, blank=True, null=True)
     date = models.DateField(blank=True, null=True)
+    batch_id = models.CharField(max_length=10, blank=True, null=True)
+    upload_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     def __str__(self):
         return f"{self.perspective} - {self.objective}" 

@@ -1,15 +1,17 @@
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from .models import Organization, UserProfile, BSCEntry
+from .models import Organization, UserProfile, BSCEntry, FinancialBSC, CustomerBSC, InternalBSC, LearningGrowthBSC
 import pandas as pd
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.views.decorators.http import require_POST
 from collections import defaultdict
+from django.views.decorators.csrf import csrf_exempt
+from django.urls import reverse
 
 def register(request):
     if request.method == 'POST':
@@ -68,38 +70,63 @@ def dashboard(request):
         is_employee = False
         organization = None
 
+    # Get data from all BSC perspective tables
     bsc_entries = []
     if organization:
-        bsc_entries = BSCEntry.objects.all()
-        # If you want to filter by organization, add a ForeignKey to Organization in BSCEntry and filter here
+        # Get entries from all perspective tables, filtered by organization
+        financial_entries = FinancialBSC.objects.filter(organization=organization)
+        customer_entries = CustomerBSC.objects.filter(organization=organization)
+        internal_entries = InternalBSC.objects.filter(organization=organization)
+        learning_entries = LearningGrowthBSC.objects.filter(organization=organization)
+        
+        # Combine all entries with their perspective information
+        for entry in financial_entries:
+            bsc_entries.append({
+                'model': 'Financial',
+                'entry': entry,
+                'perspective': 'Financial'
+            })
+        for entry in customer_entries:
+            bsc_entries.append({
+                'model': 'Customer',
+                'entry': entry,
+                'perspective': 'Customer'
+            })
+        for entry in internal_entries:
+            bsc_entries.append({
+                'model': 'Internal',
+                'entry': entry,
+                'perspective': 'Internal'
+            })
+        for entry in learning_entries:
+            bsc_entries.append({
+                'model': 'Learning & Growth',
+                'entry': entry,
+                'perspective': 'Learning & Growth'
+            })
 
     batch_map = defaultdict(list)
     batch_times = {}
-    for entry in bsc_entries:
+    for bsc_item in bsc_entries:
+        entry = bsc_item['entry']
         if not entry.batch_id:
             continue  # skip entries without a batch_id
-        batch_map[entry.batch_id].append(entry)
+        batch_map[entry.batch_id].append(bsc_item)
         if entry.batch_id not in batch_times or (entry.upload_time and entry.upload_time < batch_times[entry.batch_id]):
             batch_times[entry.batch_id] = entry.upload_time
 
     bsc_batches = []
     for batch_id in sorted(batch_map.keys()):
         entries = []
-        for entry in batch_map[batch_id]:
-            try:
-                actual = float(entry.actual)
-                target = float(entry.target)
-            except (ValueError, TypeError):
-                actual = 0.0
-                target = 0.0
-            if actual >= target:
-                status = 'good'
-            elif actual >= 0.8 * target:
-                status = 'moderate'
-            else:
-                status = 'bad'
+        for bsc_item in batch_map[batch_id]:
+            entry = bsc_item['entry']
+            perspective = bsc_item['perspective']
+            
+            # Use the built-in status calculation method
+            status = entry.get_status()
+            
             entries.append({
-                'perspective': entry.perspective,
+                'perspective': perspective,
                 'objective': entry.objective,
                 'measure': entry.measure,
                 'target': entry.target,
@@ -107,6 +134,8 @@ def dashboard(request):
                 'owner': entry.owner,
                 'date': entry.date,
                 'status': status,
+                'model_type': type(entry).__name__,
+                'pk': entry.pk,
             })
         bsc_batches.append({
             'batch_id': batch_id,
@@ -131,22 +160,71 @@ def dashboard(request):
                     messages.error(request, f"Missing required columns. Required: {', '.join(required_columns)}")
                 else:
                     # Generate new batch_id
-                    last_batch = BSCEntry.objects.order_by('-batch_id').first()
-                    if last_batch and last_batch.batch_id and last_batch.batch_id.isdigit():
-                        new_batch_id = str(int(last_batch.batch_id) + 1).zfill(3)
+                    all_entries = list(FinancialBSC.objects.all()) + list(CustomerBSC.objects.all()) + list(InternalBSC.objects.all()) + list(LearningGrowthBSC.objects.all())
+                    if all_entries:
+                        max_batch = max(all_entries, key=lambda x: int(x.batch_id) if x.batch_id and x.batch_id.isdigit() else 0)
+                        if max_batch.batch_id and max_batch.batch_id.isdigit():
+                            new_batch_id = str(int(max_batch.batch_id) + 1).zfill(3)
+                        else:
+                            new_batch_id = '001'
                     else:
                         new_batch_id = '001'
+                    
                     for _, row in df.iterrows():
-                        BSCEntry.objects.create(
-                            perspective=row.get('perspective', ''),
-                            objective=row.get('objective', ''),
-                            measure=row.get('measure', ''),
-                            target=row.get('target', ''),
-                            actual=row.get('actual', ''),
-                            owner=row.get('owner', ''),
-                            date=row.get('date', None),
-                            batch_id=new_batch_id
-                        )
+                        perspective = row.get('perspective', '').strip()
+                        objective = row.get('objective', '')
+                        measure = row.get('measure', '')
+                        target = row.get('target', '')
+                        actual = row.get('actual', '')
+                        owner = row.get('owner', '')
+                        date = row.get('date', None)
+                        
+                        # Create entry in the appropriate table based on perspective
+                        if perspective.lower() == 'financial':
+                            FinancialBSC.objects.create(
+                                objective=objective,
+                                measure=measure,
+                                target=target,
+                                actual=actual,
+                                owner=owner,
+                                date=date,
+                                batch_id=new_batch_id,
+                                organization=organization
+                            )
+                        elif perspective.lower() == 'customer':
+                            CustomerBSC.objects.create(
+                                objective=objective,
+                                measure=measure,
+                                target=target,
+                                actual=actual,
+                                owner=owner,
+                                date=date,
+                                batch_id=new_batch_id,
+                                organization=organization
+                            )
+                        elif perspective.lower() == 'internal':
+                            InternalBSC.objects.create(
+                                objective=objective,
+                                measure=measure,
+                                target=target,
+                                actual=actual,
+                                owner=owner,
+                                date=date,
+                                batch_id=new_batch_id,
+                                organization=organization
+                            )
+                        elif perspective.lower() == 'learning & growth':
+                            LearningGrowthBSC.objects.create(
+                                objective=objective,
+                                measure=measure,
+                                target=target,
+                                actual=actual,
+                                owner=owner,
+                                date=date,
+                                batch_id=new_batch_id,
+                                organization=organization
+                            )
+                    
                     messages.success(request, f'BSC data uploaded and processed successfully! {df.shape[0]} entries added in batch {new_batch_id}.')
                     return redirect('dashboard')
             except Exception as e:
@@ -167,19 +245,63 @@ def bsc_data_api(request):
         organization = user.userprofile.organization
     except UserProfile.DoesNotExist:
         return JsonResponse({'error': 'No organization'}, status=400)
-    entries = BSCEntry.objects.all()  # Optionally filter by organization if you add a ForeignKey
-    data = [
-        {
-            'perspective': e.perspective,
+    
+    # Get data from all perspective tables, filtered by organization
+    financial_entries = FinancialBSC.objects.filter(organization=organization)
+    customer_entries = CustomerBSC.objects.filter(organization=organization)
+    internal_entries = InternalBSC.objects.filter(organization=organization)
+    learning_entries = LearningGrowthBSC.objects.filter(organization=organization)
+    
+    data = []
+    
+    # Add financial entries
+    for e in financial_entries:
+        data.append({
+            'perspective': 'Financial',
             'objective': e.objective,
             'measure': e.measure,
             'target': e.target,
             'actual': e.actual,
             'owner': e.owner,
             'date': e.date.strftime('%Y-%m-%d') if e.date else ''
-        }
-        for e in entries
-    ]
+        })
+    
+    # Add customer entries
+    for e in customer_entries:
+        data.append({
+            'perspective': 'Customer',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
+    
+    # Add internal entries
+    for e in internal_entries:
+        data.append({
+            'perspective': 'Internal',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
+    
+    # Add learning & growth entries
+    for e in learning_entries:
+        data.append({
+            'perspective': 'Learning & Growth',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
+    
     return JsonResponse({'entries': data})
 
 @login_required
@@ -196,9 +318,91 @@ def delete_bsc_data(request):
         is_admin = profile.role == 'admin'
     except UserProfile.DoesNotExist:
         is_admin = False
+    
+    if not is_admin:
+        messages.error(request, 'You do not have permission to delete BSC data.')
+        return redirect('dashboard')
+    
+    # Get the password from the form
+    password = request.POST.get('admin_password')
+    
+    if not password:
+        messages.error(request, 'Password is required to delete all BSC data.')
+        return redirect('dashboard')
+    
+    # Verify the password
+    if not user.check_password(password):
+        messages.error(request, 'Password does not match. Please try again.')
+        return redirect('dashboard')
+    
+    # If password is correct, delete all BSC data from all perspective tables
+    deleted_financial = FinancialBSC.objects.all().delete()[0]
+    deleted_customer = CustomerBSC.objects.all().delete()[0]
+    deleted_internal = InternalBSC.objects.all().delete()[0]
+    deleted_learning = LearningGrowthBSC.objects.all().delete()[0]
+    
+    total_deleted = deleted_financial + deleted_customer + deleted_internal + deleted_learning
+    messages.success(request, f'All BSC data has been deleted successfully. {total_deleted} entries removed.')
+    return redirect('dashboard')
+
+@login_required
+@require_POST
+def delete_batch(request, batch_id):
+    user = request.user
+    try:
+        profile = user.userprofile
+        is_admin = profile.role == 'admin'
+    except UserProfile.DoesNotExist:
+        is_admin = False
+    
     if is_admin:
-        BSCEntry.objects.all().delete()
-        messages.success(request, 'All BSC data has been deleted.')
+        # Delete all entries with the specified batch_id from all perspective tables
+        deleted_financial = FinancialBSC.objects.filter(batch_id=batch_id).delete()[0]
+        deleted_customer = CustomerBSC.objects.filter(batch_id=batch_id).delete()[0]
+        deleted_internal = InternalBSC.objects.filter(batch_id=batch_id).delete()[0]
+        deleted_learning = LearningGrowthBSC.objects.filter(batch_id=batch_id).delete()[0]
+        
+        total_deleted = deleted_financial + deleted_customer + deleted_internal + deleted_learning
+        
+        if total_deleted > 0:
+            messages.success(request, f'Batch {batch_id} has been deleted successfully. {total_deleted} entries removed.')
+        else:
+            messages.error(request, f'Batch {batch_id} not found.')
     else:
-        messages.error(request, 'You are not authorized to perform this action.')
+        messages.error(request, 'You do not have permission to delete BSC data.')
+    
+    return redirect('dashboard')
+
+@login_required
+@require_POST
+@csrf_exempt
+def update_batch(request, batch_id):
+    user = request.user
+    try:
+        profile = user.userprofile
+        is_admin = profile.role == 'admin'
+    except Exception:
+        is_admin = False
+    if not is_admin:
+        messages.error(request, 'You do not have permission to update BSC data.')
+        return redirect('dashboard')
+
+    # Collect all entries for this batch from all models
+    models = [FinancialBSC, CustomerBSC, InternalBSC, LearningGrowthBSC]
+    updated_count = 0
+    for model in models:
+        entries = model.objects.filter(batch_id=batch_id)
+        for entry in entries:
+            prefix = f"{model.__name__}_{entry.pk}_"
+            # For each editable field, update if present in POST
+            for field in ['objective', 'measure', 'target', 'actual', 'owner', 'date']:
+                key = f"{prefix}{field}"
+                if key in request.POST:
+                    value = request.POST[key]
+                    if field == 'date' and value == '':
+                        value = None
+                    setattr(entry, field, value)
+            entry.save()
+            updated_count += 1
+    messages.success(request, f'Batch {batch_id} updated successfully. {updated_count} entries updated.')
     return redirect('dashboard')

@@ -6,6 +6,19 @@
 <head>
     <title>Dashboard</title>
     <link href="{% static 'css/tailwind.build.css' %}" rel="stylesheet">
+    <style>
+    .vertical-text {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        text-align: center;
+        white-space: nowrap;
+        min-width: 60px;
+        padding: 0 12px;
+        height: 140px;
+        vertical-align: middle;
+        display: table-cell;
+    }
+    </style>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
@@ -65,24 +78,57 @@
             {% endif %}
             {% if is_admin or is_employee %}
                 {% if bsc_batches and bsc_batches|length > 0 %}
-            <div class="flex items-center gap-2 mb-4">
-                <button id="toggle-bsc-detailed" type="button"
-                    class="inline-block bg-blue-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-blue-700 transition">
-                    View Detailed BSC Entries</button>
+            <div class="flex items-center mb-4">
+                <div class="flex items-center gap-2">
+                    <button id="toggle-bsc-detailed" type="button"
+                        class="inline-block bg-blue-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-blue-700 transition">
+                        View Detailed BSC Entries
+                    </button>
+                </div>
                 {% if is_admin %}
-                <form id="delete-bsc-form" method="post" action="{% url 'delete_bsc_data' %}">
-                    {% csrf_token %}
-                    <button type="submit"
-                        class="bg-green-500 hover:bg-green-900 text-white font-semibold px-4 py-2 rounded">
-                        Update BSC Data
-                    </button>
-                    <button type="submit"
-                        onclick="return confirm('Are you sure you want to delete all BSC data? This action cannot be undone.');"
-                        class="bg-red-700 hover:bg-red-900 text-white font-semibold px-4 py-2 rounded ml-1">
-                        Delete BSC Data
-                    </button>
-                </form>
+                <button type="button"
+                    id="show-delete-modal-btn"
+                    class="bg-red-700 hover:bg-red-900 text-white font-semibold px-4 py-2 rounded ml-1">
+                    Delete All BSC Data
+                </button>
+                <!-- Modal -->
+                <div id="delete-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
+                    <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+                        <h2 class="text-lg font-bold mb-4 text-red-700">Confirm Delete All BSC Data</h2>
+                        <form id="delete-all-bsc-form" method="post" action="{% url 'delete_bsc_data' %}">
+                            {% csrf_token %}
+                            <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-2">Enter your password:</label>
+                            <input type="password" name="admin_password" id="admin-password" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4">
+                            <div class="flex justify-end gap-2">
+                                <button type="button" id="cancel-delete-modal" class="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold">Cancel</button>
+                                <button type="submit" class="px-4 py-2 rounded bg-red-700 hover:bg-red-900 text-white font-semibold">Confirm Delete</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <script>
+                    // Show modal
+                    document.getElementById('show-delete-modal-btn').addEventListener('click', function() {
+                        document.getElementById('delete-modal').classList.remove('hidden');
+                    });
+                    // Hide modal
+                    document.getElementById('cancel-delete-modal').addEventListener('click', function() {
+                        document.getElementById('delete-modal').classList.add('hidden');
+                        document.getElementById('admin-password').value = '';
+                    });
+                    // Optional: Prevent form submit if password is empty (HTML5 required already does this)
+                    document.getElementById('delete-all-bsc-form').addEventListener('submit', function(e) {
+                        if (!document.getElementById('admin-password').value) {
+                            alert('Please enter your password to delete all BSC data.');
+                            e.preventDefault();
+                        } else if (!confirm('Are you sure you want to delete all BSC data? This action cannot be undone.')) {
+                            e.preventDefault();
+                        }
+                    });
+                </script>
                 {% endif %}
+            </div>
             {% endif %}
             </div>
 
@@ -125,7 +171,9 @@
                           target: parseFloat("{{ entry.target|default:'0'|escapejs }}"),
                           actual: parseFloat("{{ entry.actual|default:'0'|escapejs }}"),
                           owner: "{{ entry.owner|escapejs }}",
-                          date: "{{ entry.date }}"
+                          date: "{{ entry.date }}",
+                          pk: "{{ entry.pk }}",
+                          model_type: "{{ entry.model_type }}"
                       });
                     {% endfor %}
                   {% endwith %}
@@ -143,25 +191,33 @@
                             '<table class="min-w-full border border-gray-200 rounded-lg overflow-hidden">' +
                             '<thead class="bg-blue-100">' +
                             '<tr>' +
-                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Objective</th>' +
-                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Measure</th>' +
-                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Target</th>' +
-                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Actual</th>' +
-                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Owner</th>' +
-                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Date</th>' +
-                            '<th class="px-3 py-2 text-center text-xs font-semibold text-blue-700">Status</th>' +
+                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Objective</th>' +
+                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Measure</th>' +
+                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Target</th>' +
+                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Actual</th>' +
+                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Owner</th>' +
+                            '<th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Date</th>' +
+                            '<th class="px-3 py-2 text-center text-xs font-semibold text-blue-700 border border-gray-300">Status</th>' +
                             '</tr>' +
                             '</thead>' +
                             '<tbody class="bg-white divide-y divide-gray-100">' +
                             data.map(function (entry) {
                                 return '<tr>' +
-                                    '<td class="px-3 py-2">' + entry.objective + '</td>' +
-                                    '<td class="px-3 py-2">' + entry.measure + '</td>' +
-                                    '<td class="px-3 py-2">' + entry.target + '</td>' +
-                                    '<td class="px-3 py-2">' + entry.actual + '</td>' +
-                                    '<td class="px-3 py-2">' + entry.owner + '</td>' +
-                                    '<td class="px-3 py-2">' + entry.date + '</td>' +
-                                    '<td class="px-3 py-2 text-center">' +
+                                    '<td class="px-3 py-2 border border-gray-300">' + entry.objective + '</td>' +
+                                    '<td class="px-3 py-2 border border-gray-300">' + entry.measure + '</td>' +
+                                    '<td class="px-3 py-2 border border-gray-300">' + entry.target + '</td>' +
+                                    '<td class="px-3 py-2 border border-gray-300">' + entry.actual + '</td>' +
+                                    '<td class="px-3 py-2 border border-gray-300">' + entry.owner + '</td>' +
+                                    '<td class="px-3 py-2 border border-gray-300">' +
+                                    (function () {
+                                        if (entry.date) {
+                                            return entry.date.split('T')[0];
+                                        } else {
+                                            return '';
+                                        }
+                                    })() +
+                                    '</td>' +
+                                    '<td class="px-3 py-2 text-center border border-gray-300">' +
                                     (function () {
                                         if (entry.actual >= entry.target) {
                                             return '<span class="inline-block w-4 h-4 rounded-full bg-green-500 border-2 border-green-700" title="Good"></span>';
@@ -234,51 +290,99 @@
                 });
             </script>
         </div>
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="mx-[150px] bg-white rounded-lg shadow p-6 mb-6">
             {% if bsc_batches and bsc_batches|length > 0 %}
             <div class="space-y-4">
                 {% for batch in bsc_batches %}
                 <div class="bg-white rounded-lg shadow p-4">
-                    <button type="button" class="w-full text-left font-bold text-blue-700" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                        Batch {{ batch.batch_id }} — Uploaded: {{ batch.upload_time|date:"Y-m-d H:i" }}
-                    </button>
+                    <div class="w-full flex justify-between items-center">
+                        <button type="button" class="text-left font-bold text-blue-700 flex-1" onclick="this.parentElement.nextElementSibling.classList.toggle('hidden')">
+                            Batch {{ batch.batch_id }} — Uploaded: {{ batch.upload_time|date:"Y-m-d H:i" }}
+                        </button>
+                        {% if is_admin %}
+                        <div class="flex items-center gap-2 ml-2">
+                            <form method="post" action="#" onsubmit="return false;">
+                                {% csrf_token %}
+                                <button type="button"
+                                    class="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded font-semibold"
+                                    onclick="enableBatchEdit('{{ batch.batch_id }}')"
+                                    id="edit-btn-{{ batch.batch_id }}">
+                                    Update BSC Data
+                                </button>
+                                <button type="button" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded font-semibold" id="save-btn-{{ batch.batch_id }}" onclick="saveBatchEdit('{{ batch.batch_id }}')">Save</button>
+                                <button type="button" class="hidden bg-gray-400 hover:bg-gray-600 text-white text-sm px-3 py-2 rounded font-semibold" id="cancel-btn-{{ batch.batch_id }}" onclick="cancelBatchEdit('{{ batch.batch_id }}')">Cancel</button>
+                            </form>
+                            <form method="post" action="{% url 'delete_batch' batch.batch_id %}">
+                                {% csrf_token %}
+                                <button type="submit" 
+                                    onclick="return confirm('Are you sure you want to delete Batch {{ batch.batch_id }}? This action cannot be undone.');"
+                                    class="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-2 rounded font-semibold">
+                                    Delete Batch
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
                     <div class="mt-2 hidden">
-                        <table class="min-w-full border border-gray-200 rounded-lg overflow-hidden">
-                            <thead class="bg-blue-100">
-                                <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Perspective</th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Objective</th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Measure</th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Target</th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Actual</th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Owner</th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700">Date</th>
-                                    <th class="px-3 py-2 text-center text-xs font-semibold text-blue-700">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-100">
-                                {% for entry in batch.entries %}
-                                <tr>
-                                    <td class="px-3 py-2">{{ entry.perspective }}</td>
-                                    <td class="px-3 py-2">{{ entry.objective }}</td>
-                                    <td class="px-3 py-2">{{ entry.measure }}</td>
-                                    <td class="px-3 py-2">{{ entry.target }}</td>
-                                    <td class="px-3 py-2">{{ entry.actual }}</td>
-                                    <td class="px-3 py-2">{{ entry.owner }}</td>
-                                    <td class="px-3 py-2">{{ entry.date }}</td>
-                                    <td class="px-3 py-2 text-center">
-                                        {% if entry.status == 'good' %}
-                                        <span class="inline-block w-4 h-4 rounded-full bg-green-500 border-2 border-green-700" title="Good"></span>
-                                        {% elif entry.status == 'moderate' %}
-                                        <span class="inline-block w-4 h-4 rounded-full bg-yellow-400 border-2 border-yellow-600" title="Moderate"></span>
-                                        {% else %}
-                                        <span class="inline-block w-4 h-4 rounded-full bg-red-500 border-2 border-red-700" title="Bad"></span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                        <form method="post" action="{% url 'update_batch' batch.batch_id %}" id="batch-form-{{ batch.batch_id }}">
+                            {% csrf_token %}
+                            <table class="min-w-full border border-gray-200 rounded-lg overflow-hidden" id="batch-table-{{ batch.batch_id }}">
+                                <thead class="bg-blue-100">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Perspective</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Objective</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Measure</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Target</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Actual</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Owner</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-blue-700 border border-gray-300">Date</th>
+                                        <th class="px-3 py-2 text-center text-xs font-semibold text-blue-700 border border-gray-300">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-100">
+                                    {% regroup batch.entries by perspective as grouped_entries %}
+                                    {% for group in grouped_entries %}
+                                        {% for entry in group.list %}
+                                        <tr data-model="{{ entry.model_type }}" data-pk="{{ entry.pk }}">
+                                            {% if forloop.first %}
+                                            <td
+                                              class="px-3 py-2 border border-gray-300"
+                                              style="
+                                                min-width:60px;
+                                                height:140px;
+                                                background:
+                                                  {% if group.grouper == 'Financial' %}#82aeff
+                                                  {% elif group.grouper == 'Customer' %}#4d7cf3
+                                                  {% elif group.grouper == 'Internal' %}#f75002
+                                                  {% elif group.grouper == 'Learning & Growth' %}#fe880c
+                                                  {% else %}#2563eb{% endif %};
+                                              "
+                                              rowspan="{{ group.list|length }}"
+                                            >
+                                              <p class="p-3 text-center vertical-text text-white">
+                                                {% if group.grouper == "Learning & Growth" %}
+                                                  Learning &<br>Growth
+                                                {% else %}
+                                                  {{ group.grouper }}
+                                                {% endif %}
+                                              </p>
+                                            </td>
+                                            {% endif %}
+                                            <td class="px-3 py-2 border border-gray-300" data-field="objective">{{ entry.objective }}</td>
+                                            <td class="px-3 py-2 border border-gray-300" data-field="measure">{{ entry.measure }}</td>
+                                            <td class="px-3 py-2 border border-gray-300" data-field="target">{{ entry.target }}</td>
+                                            <td class="px-3 py-2 border border-gray-300" data-field="actual">{{ entry.actual }}</td>
+                                            <td class="px-3 py-2 border border-gray-300" data-field="owner">{{ entry.owner }}</td>
+                                            <td class="px-3 py-2 border border-gray-300" data-field="date">
+                                                {% if entry.date %}{{ entry.date|date:"Y-m-d" }}{% else %}{% endif %}
+                                            </td>
+                                            <td class="px-3 py-2 text-center border border-gray-300">{% if entry.status == 'good' %}<span class="inline-block w-4 h-4 rounded-full bg-green-500 border-2 border-green-700" title="Good"></span>{% elif entry.status == 'moderate' %}<span class="inline-block w-4 h-4 rounded-full bg-yellow-400 border-2 border-yellow-600" title="Moderate"></span>{% else %}<span class="inline-block w-4 h-4 rounded-full bg-red-500 border-2 border-red-700" title="Bad"></span>{% endif %}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -319,6 +423,35 @@
         </div>
             {% endif %}
     </div>
+    <script>
+    function enableBatchEdit(batchId) {
+        const table = document.getElementById('batch-table-' + batchId);
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const modelType = row.getAttribute('data-model');
+            const pk = row.getAttribute('data-pk');
+            row.querySelectorAll('td[data-field]').forEach(cell => {
+                const field = cell.getAttribute('data-field');
+                const value = cell.textContent.trim();
+                const inputName = `${modelType}_${pk}_${field}`;
+                if (field === 'date') {
+                    cell.innerHTML = `<input type="date" name="${inputName}" value="${value && value !== 'None' ? value : ''}" class="w-full border rounded px-1 py-1 text-xs" />`;
+                } else {
+                    cell.innerHTML = `<input type="text" name="${inputName}" value="${value}" class="w-full border rounded px-1 py-1 text-xs" />`;
+                }
+            });
+        });
+        document.getElementById('edit-btn-' + batchId).classList.add('hidden');
+        document.getElementById('save-btn-' + batchId).classList.remove('hidden');
+        document.getElementById('cancel-btn-' + batchId).classList.remove('hidden');
+    }
+    function cancelBatchEdit(batchId) {
+        window.location.reload();
+    }
+    function saveBatchEdit(batchId) {
+        document.getElementById('batch-form-' + batchId).submit();
+    }
+    </script>
 </body>
 
 </html>

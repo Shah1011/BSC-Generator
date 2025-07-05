@@ -406,3 +406,104 @@ def update_batch(request, batch_id):
             updated_count += 1
     messages.success(request, f'Batch {batch_id} updated successfully. {updated_count} entries updated.')
     return redirect('dashboard')
+
+@login_required
+def profile_view(request):
+    user = request.user
+    try:
+        profile = user.userprofile
+        organization = profile.organization
+        role = profile.role
+    except UserProfile.DoesNotExist:
+        organization = None
+        role = None
+
+    # Check if there's any BSC data to delete
+    has_bsc_data = False
+    if organization:
+        # Check all BSC perspective tables for data
+        financial_count = FinancialBSC.objects.filter(organization=organization).count()
+        customer_count = CustomerBSC.objects.filter(organization=organization).count()
+        internal_count = InternalBSC.objects.filter(organization=organization).count()
+        learning_count = LearningGrowthBSC.objects.filter(organization=organization).count()
+        
+        has_bsc_data = financial_count > 0 or customer_count > 0 or internal_count > 0 or learning_count > 0
+
+    if request.method == 'POST':
+        # Handle form submission
+        action = request.POST.get('action')
+        
+        if action == 'update_profile':
+            # Update user information
+            first_name = request.POST.get('first_name', '').strip()
+            last_name = request.POST.get('last_name', '').strip()
+            email = request.POST.get('email', '').strip()
+            
+            # Validate email
+            if email and email != user.email:
+                if User.objects.filter(email=email).exclude(id=user.id).exists():
+                    messages.error(request, 'Email already exists.')
+                    return render(request, 'profile.html', {
+                        'user': user,
+                        'organization': organization,
+                        'role': role,
+                        'has_bsc_data': has_bsc_data
+                    })
+            
+            # Update user fields
+            user.first_name = first_name
+            user.last_name = last_name
+            user.email = email
+            user.save()
+            
+            messages.success(request, 'Profile updated successfully!')
+            return redirect('profile')
+            
+        elif action == 'change_password':
+            # Handle password change
+            current_password = request.POST.get('current_password')
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            # Validate current password
+            if not user.check_password(current_password):
+                messages.error(request, 'Current password is incorrect.')
+                return render(request, 'profile.html', {
+                    'user': user,
+                    'organization': organization,
+                    'role': role,
+                    'has_bsc_data': has_bsc_data
+                })
+            
+            # Validate new password
+            if new_password != confirm_password:
+                messages.error(request, 'New passwords do not match.')
+                return render(request, 'profile.html', {
+                    'user': user,
+                    'organization': organization,
+                    'role': role,
+                    'has_bsc_data': has_bsc_data
+                })
+            
+            if len(new_password) < 8:
+                messages.error(request, 'Password must be at least 8 characters long.')
+                return render(request, 'profile.html', {
+                    'user': user,
+                    'organization': organization,
+                    'role': role,
+                    'has_bsc_data': has_bsc_data
+                })
+            
+            # Update password
+            user.set_password(new_password)
+            user.save()
+            
+            messages.success(request, 'Password changed successfully! Please log in again.')
+            return redirect('login')
+
+    return render(request, 'profile.html', {
+        'user': user,
+        'organization': organization,
+        'role': role,
+        'has_bsc_data': has_bsc_data
+    })

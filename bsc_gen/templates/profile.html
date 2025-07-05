@@ -1,0 +1,214 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Profile Management</title>
+    <link href="{% static 'css/tailwind.build.css' %}" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow mb-8">
+        <div class="mx-[26px] flex justify-between items-center h-full">
+            <a href="/" class="text-2xl font-bold text-blue-700">BSC Generator</a>
+            <div class="flex gap-2 items-center space-x-6 p-6">
+                <p class="text-sm font-semibold bg-green-300 rounded-full px-3 py-1">{% if role == 'admin' %}Admin{% elif role == 'employee' %}Employee{% endif %}</p>
+                <div class="flex items-center gap-2">
+                    <img src="{% static 'assets/abstract.jpg' %}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-blue-400 object-cover" />
+                    <a href="{% url 'profile' %}" class="text-gray-700 hover:text-blue-600 font-semibold">{{ user.username }}</a>
+                </div>
+                <a href="{% url 'logout' %}" class="text-red-600 hover:underline font-semibold">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="mx-[150px]">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-blue-700 mb-2">Profile Management</h1>
+            <p class="text-gray-600">Manage your account information and security settings.</p>
+        </div>
+
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700 border border-green-300{% else %}bg-red-100 text-red-700 border border-red-300{% endif %} mb-2">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Profile Information -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-bold text-blue-600 mb-4">Profile Information</h2>
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_profile">
+                    
+                    <div>
+                        <label for="username" class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                        <input type="text" id="username" value="{{ user.username }}" disabled 
+                               class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100 text-gray-500">
+                        <p class="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="first_name" class="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
+                            <input type="text" id="first_name" name="first_name" value="{{ user.first_name }}" 
+                                   class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        </div>
+                        <div>
+                            <label for="last_name" class="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
+                            <input type="text" id="last_name" name="last_name" value="{{ user.last_name }}" 
+                                   class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="email" class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                        <input type="email" id="email" name="email" value="{{ user.email }}" required 
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+
+                    <div>
+                        <label for="organization" class="block text-sm font-semibold text-gray-700 mb-1">Organization</label>
+                        <input type="text" id="organization" value="{% if organization %}{{ organization.name }}{% else %}Not assigned{% endif %}" disabled 
+                               class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100 text-gray-500">
+                        <p class="text-xs text-gray-500 mt-1">Organization is managed by your administrator</p>
+                    </div>
+
+                    <div>
+                        <label for="role" class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                        <input type="text" id="role" value="{% if role == 'admin' %}Administrator{% elif role == 'employee' %}Employee{% else %}Not assigned{% endif %}" disabled 
+                               class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100 text-gray-500">
+                        <p class="text-xs text-gray-500 mt-1">Role is managed by your administrator</p>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition duration-200">
+                        Update Profile
+                    </button>
+                </form>
+            </div>
+
+            <!-- Change Password -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-bold text-blue-600 mb-4">Change Password</h2>
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="change_password">
+                    
+                    <div>
+                        <label for="current_password" class="block text-sm font-semibold text-gray-700 mb-1">Current Password</label>
+                        <input type="password" id="current_password" name="current_password" required 
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+
+                    <div>
+                        <label for="new_password" class="block text-sm font-semibold text-gray-700 mb-1">New Password</label>
+                        <input type="password" id="new_password" name="new_password" required 
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <p class="text-xs text-gray-500 mt-1">Password must be at least 8 characters long</p>
+                    </div>
+
+                    <div>
+                        <label for="confirm_password" class="block text-sm font-semibold text-gray-700 mb-1">Confirm New Password</label>
+                        <input type="password" id="confirm_password" name="confirm_password" required 
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+
+                    <button type="submit" class="w-full bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700 transition duration-200">
+                        Change Password
+                    </button>
+                </form>
+
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h3 class="text-sm font-semibold text-yellow-800 mb-2">Security Notice</h3>
+                    <p class="text-xs text-yellow-700">
+                        After changing your password, you will be automatically logged out and need to log in again with your new password.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Controls -->
+        {% if role == 'admin' %}
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-bold text-red-600 mb-4">Administrative Controls</h2>
+            <div class="space-y-4">
+                <div class="p-4 {% if has_bsc_data %}bg-red-50 border border-red-200{% else %}bg-gray-50 border border-gray-200{% endif %} rounded-lg">
+                    <h3 class="text-lg font-semibold {% if has_bsc_data %}text-red-800{% else %}text-gray-600{% endif %} mb-2">Delete All BSC Data</h3>
+                    {% if has_bsc_data %}
+                    <p class="text-sm text-red-700 mb-4">
+                        This action will permanently delete all BSC data from all perspectives (Financial, Customer, Internal, Learning & Growth). 
+                        This action cannot be undone.
+                    </p>
+                    <button type="button" id="show-delete-modal-btn"
+                        class="bg-red-700 hover:bg-red-900 text-white font-semibold px-6 py-3 rounded transition duration-200">
+                        Delete All BSC Data
+                    </button>
+                    {% else %}
+                    <p class="text-sm text-gray-600 mb-4">
+                        No BSC data is currently available to delete. Upload some data first to enable this function.
+                    </p>
+                    <button type="button" disabled
+                        class="bg-gray-400 text-gray-500 font-semibold px-6 py-3 rounded cursor-not-allowed">
+                        Delete All BSC Data
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if has_bsc_data %}
+            <!-- Delete Modal -->
+            <div id="delete-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
+                <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+                    <h2 class="text-lg font-bold mb-4 text-red-700">Confirm Delete All BSC Data</h2>
+                    <form id="delete-all-bsc-form" method="post" action="{% url 'delete_bsc_data' %}">
+                        {% csrf_token %}
+                        <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-2">Enter your password:</label>
+                        <input type="password" name="admin_password" id="admin-password" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4">
+                        <div class="flex justify-end gap-2">
+                            <button type="button" id="cancel-delete-modal" class="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold">Cancel</button>
+                            <button type="submit" class="px-4 py-2 rounded bg-red-700 hover:bg-red-900 text-white font-semibold">Confirm Delete</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <script>
+                // Show modal
+                document.getElementById('show-delete-modal-btn').addEventListener('click', function() {
+                    document.getElementById('delete-modal').classList.remove('hidden');
+                });
+                // Hide modal
+                document.getElementById('cancel-delete-modal').addEventListener('click', function() {
+                    document.getElementById('delete-modal').classList.add('hidden');
+                    document.getElementById('admin-password').value = '';
+                });
+                // Prevent form submit if password is empty
+                document.getElementById('delete-all-bsc-form').addEventListener('submit', function(e) {
+                    if (!document.getElementById('admin-password').value) {
+                        alert('Please enter your password to delete all BSC data.');
+                        e.preventDefault();
+                    } else if (!confirm('Are you sure you want to delete all BSC data? This action cannot be undone.')) {
+                        e.preventDefault();
+                    }
+                });
+            </script>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Back to Dashboard -->
+        <div class="mt-8 text-center mb-8">
+            <a href="{% url 'dashboard' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-semibold transition duration-200">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

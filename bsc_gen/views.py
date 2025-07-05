@@ -19,7 +19,6 @@ def register(request):
         email = request.POST.get('email')
         password = request.POST.get('password')
         password2 = request.POST.get('password2')
-        role = request.POST.get('role')
         org_name = request.POST.get('organization')
 
         # Error checks
@@ -32,8 +31,9 @@ def register(request):
         else:
             user = User.objects.create_user(username=username, email=email, password=password)
             organization, _ = Organization.objects.get_or_create(name=org_name)
-            UserProfile.objects.create(user=user, organization=organization, role=role)
-            messages.success(request, 'Account created successfully! Please log in.')
+            # Only create admin users through registration
+            UserProfile.objects.create(user=user, organization=organization, role='admin')
+            messages.success(request, 'Admin account created successfully! Please log in.')
             return redirect('login')
 
     return render(request, 'register.html')
@@ -430,27 +430,14 @@ def profile_view(request):
         has_bsc_data = financial_count > 0 or customer_count > 0 or internal_count > 0 or learning_count > 0
 
     if request.method == 'POST':
-        # Handle form submission
         action = request.POST.get('action')
         
         if action == 'update_profile':
-            # Update user information
-            first_name = request.POST.get('first_name', '').strip()
-            last_name = request.POST.get('last_name', '').strip()
-            email = request.POST.get('email', '').strip()
+            # Handle profile updates
+            first_name = request.POST.get('first_name', '')
+            last_name = request.POST.get('last_name', '')
+            email = request.POST.get('email', '')
             
-            # Validate email
-            if email and email != user.email:
-                if User.objects.filter(email=email).exclude(id=user.id).exists():
-                    messages.error(request, 'Email already exists.')
-                    return render(request, 'profile.html', {
-                        'user': user,
-                        'organization': organization,
-                        'role': role,
-                        'has_bsc_data': has_bsc_data
-                    })
-            
-            # Update user fields
             user.first_name = first_name
             user.last_name = last_name
             user.email = email
@@ -485,8 +472,8 @@ def profile_view(request):
                     'has_bsc_data': has_bsc_data
                 })
             
-            if len(new_password) < 8:
-                messages.error(request, 'Password must be at least 8 characters long.')
+            if len(new_password) < 6:
+                messages.error(request, 'Password must be at least 6 characters long.')
                 return render(request, 'profile.html', {
                     'user': user,
                     'organization': organization,
@@ -507,3 +494,121 @@ def profile_view(request):
         'role': role,
         'has_bsc_data': has_bsc_data
     })
+
+@login_required
+def add_viewer(request):
+    user = request.user
+    try:
+        profile = user.userprofile
+        is_admin = profile.role == 'admin'
+        organization = profile.organization
+    except UserProfile.DoesNotExist:
+        is_admin = False
+        organization = None
+
+    # Only admins can add viewers
+    if not is_admin:
+        messages.error(request, 'You do not have permission to add viewers.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        first_name = request.POST.get('first_name', '')
+        last_name = request.POST.get('last_name', '')
+        password = request.POST.get('password', '')
+        
+        # Generate a random password if none provided
+        if not password:
+            import random
+            import string
+            password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        
+        # Error checks
+        if User.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists')
+        elif User.objects.filter(email=email).exists():
+            messages.error(request, 'Email already exists')
+        elif password and len(password) < 6:
+            messages.error(request, 'Password must be at least 6 characters long')
+        else:
+            # Create the user
+            new_user = User.objects.create_user(
+                username=username, 
+                email=email, 
+                password=password,
+                first_name=first_name,
+                last_name=last_name
+            )
+            
+            # Create user profile with employee role
+            UserProfile.objects.create(
+                user=new_user, 
+                organization=organization, 
+                role='employee'
+            )
+            
+            if not request.POST.get('password'):
+                messages.success(request, f'Viewer account created successfully! Username: {username}, Password: {password}')
+            else:
+                messages.success(request, f'Viewer account created successfully! Username: {username}')
+            return redirect('dashboard')
+
+    # Count viewers in the organization and get their details
+    viewer_count = 0
+    viewers = []
+    if organization:
+        viewers = UserProfile.objects.filter(organization=organization, role='employee').select_related('user')
+        viewer_count = viewers.count()
+
+    return render(request, 'add_viewer.html', {
+        'user': user,
+        'organization': organization,
+        'viewer_count': viewer_count,
+        'viewers': viewers,
+    })
+
+@login_required
+@require_POST
+def delete_viewer(request, viewer_id):
+    user = request.user
+    try:
+        profile = user.userprofile
+        is_admin = profile.role == 'admin'
+        organization = profile.organization
+    except UserProfile.DoesNotExist:
+        is_admin = False
+        organization = None
+
+    # Only admins can delete viewers
+    if not is_admin:
+        messages.error(request, 'You do not have permission to delete viewers.')
+        return redirect('add_viewer')
+
+    try:
+        # Get the viewer profile to delete
+        viewer_profile = UserProfile.objects.get(
+            id=viewer_id,
+            organization=organization,
+            role='employee'
+        )
+        
+        # Prevent admin from deleting themselves
+        if viewer_profile.user == user:
+            messages.error(request, 'You cannot delete your own account.')
+            return redirect('add_viewer')
+        
+        # Get the username before deleting for the success message
+        username = viewer_profile.user.username
+        
+        # Delete the user (this will also delete the profile due to CASCADE)
+        viewer_profile.user.delete()
+        
+        messages.success(request, f'Viewer "{username}" has been deleted successfully.')
+        
+    except UserProfile.DoesNotExist:
+        messages.error(request, 'Viewer not found or you do not have permission to delete them.')
+    except Exception as e:
+        messages.error(request, f'Error deleting viewer: {str(e)}')
+
+    return redirect('add_viewer')

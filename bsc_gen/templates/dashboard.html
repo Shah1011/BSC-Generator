@@ -31,6 +31,9 @@
                     <img src="{% static 'assets/abstract.jpg' %}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-blue-400 object-cover" />
                     <a href="{% url 'profile' %}" class="text-gray-700 hover:text-blue-600 font-semibold">{{ user.username }}</a>
                 </div>
+                {% if is_admin %}
+                <a href="{% url 'add_viewer' %}" class="text-blue-600 hover:text-blue-800 font-semibold">Viewers</a>
+                {% endif %}
                 <a href="{% url 'logout' %}" class="text-red-600 hover:underline font-semibold">Logout</a>
             </div>
         </div>

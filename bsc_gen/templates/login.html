@@ -1,41 +1,139 @@
-{% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Login</title>
-    <link href="{% static 'css/tailwind.build.css' %}" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - BSC Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .forgot-password {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .forgot-password a {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .register-link a {
+            color: #28a745;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
 </head>
-<body class="bg-blue-50 min-h-screen flex items-center justify-center">
-    <div class="flex w-full h-screen">
-        <!-- Left: Login Form -->
-        <div class="md:w-1/2 flex items-center justify-center">
-            <div class="rounded-lg shadow-lg p-8 w-[500px] bg-white">
-                <h2 class="text-2xl font-bold text-blue-700 mb-4">Login</h2>
-                {% if messages %}
-                    <ul class="mb-4">
-                        {% for message in messages %}
-                            <li class="text-sm {% if message.tags == 'success' %}text-green-600{% else %}text-red-600{% endif %}">{{ message }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-                <form method="post" class="space-y-4 text-sm">
-                    {% csrf_token %}
-                    <div>
-                        <label for="username" class="block text-gray-700 font-semibold mb-1">Username</label>
-                        <input type="text" id="username" name="username" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    </div>
-                    <div>
-                        <label for="password" class="block text-gray-700 font-semibold mb-1">Password</label>
-                        <input type="password" id="password" name="password" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700">Login</button>
-                </form>
-                <p class="mt-4 text-center text-sm text-gray-600">Don't have an account? <a href="{% url 'register' %}" class="text-blue-600 hover:underline font-semibold">Register here</a>.</p>
+<body>
+    <div class="container">
+        <h2>Login to BSC Generator</h2>
+        
+        <!-- Display messages -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="{% if message.tags == 'error' %}error-message{% else %}success-message{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
             </div>
-        </div>
-        <!-- Right: Wallpaper -->
-        <div class="hidden md:block" style="width:50vw; height:100vh; background-image: url('{% static 'assets/abstract.jpg' %}'); background-size: cover; background-position: center; display:block;">
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="btn">Login</button>
+            
+            <!-- Forgot Password Link -->
+            <div class="forgot-password">
+                <a href="{% url 'password_reset' %}">Forgot your password?</a>
+            </div>
+        </form>
+        
+        <div class="register-link">
+            Don't have an account? <a href="{% url 'register' %}">Register here</a>
         </div>
     </div>
 </body>
-</html> 
+</html>

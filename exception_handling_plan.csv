@@ -1,0 +1,148 @@
+Exception Category,Possible Exceptions,Handling Strategy,Priority,Status
+Database Connection,"django.db.utils.OperationalError, psycopg2.OperationalError, django.db.utils.InterfaceError","try:
+    # Database operation
+except OperationalError:
+    logging.error('DB connection failed')
+    # Implement retry logic or fallback","High","Not Implemented"
+Model Not Found,"UserProfile.DoesNotExist, Organization.DoesNotExist, BSCEntry.DoesNotExist","try:
+    profile = user.userprofile
+except UserProfile.DoesNotExist:
+    profile = None
+    # Create default profile or handle gracefully","High","Partially Implemented"
+Data Integrity,"django.db.utils.IntegrityError, django.core.exceptions.ValidationError","try:
+    BSCEntry.objects.create(...)
+except IntegrityError:
+    messages.error('Duplicate entry or constraint violation')
+except ValidationError as e:
+    messages.error(str(e))","High","Not Implemented"
+File Upload Processing,"pandas.errors.EmptyDataError, pandas.errors.ParserError, UnicodeDecodeError","try:
+    if file.name.endswith('.csv'):
+        df = pd.read_csv(file, encoding='utf-8')
+    else:
+        df = pd.read_excel(file)
+except EmptyDataError:
+    raise ValidationError('Uploaded file is empty')
+except ParserError:
+    raise ValidationError('Invalid file format or corrupted file')
+except UnicodeDecodeError:
+    raise ValidationError('File encoding issue. Please use UTF-8')","High","Partially Implemented"
+Authentication,"django.contrib.auth.AuthenticationFailed, django.contrib.auth.PermissionDenied","try:
+    user = authenticate(username, password)
+    if not user:
+        raise AuthenticationFailed
+except AuthenticationFailed:
+    messages.error('Invalid username or password')
+except PermissionDenied:
+    messages.error('You do not have permission to access this resource')","High","Partially Implemented"
+HTTP Request Errors,"django.http.Http404, django.http.Http500, django.core.exceptions.SuspiciousOperation","try:
+    return view_function(request)
+except Http404:
+    return JsonResponse({'error': 'Resource not found'}, status=404)
+except Http500:
+    return JsonResponse({'error': 'Internal server error'}, status=500)
+except SuspiciousOperation:
+    return JsonResponse({'error': 'Security violation detected'}, status=400)","Medium","Not Implemented"
+Template Rendering,"django.template.TemplateDoesNotExist, django.template.TemplateSyntaxError","try:
+    return render(request, template_name, context)
+except TemplateDoesNotExist:
+    return render(request, 'error/404.html', status=404)
+except TemplateSyntaxError:
+    logging.error('Template syntax error')
+    return render(request, 'error/500.html', status=500)","Medium","Not Implemented"
+Configuration Issues,"django.core.exceptions.ImproperlyConfigured, ImportError, KeyError","try:
+    validate_settings()
+except ImproperlyConfigured as e:
+    logging.critical(f'Configuration error: {e}')
+    # Exit gracefully or use defaults
+except ImportError as e:
+    logging.error(f'Missing dependency: {e}')
+    # Install missing package or use alternative","Low","Not Implemented"
+Data Validation,"ValueError, TypeError, KeyError","try:
+    validate_bsc_data(data)
+    # Check required fields, data types, ranges
+except (ValueError, TypeError) as e:
+    messages.error(f'Invalid data format: {e}')
+except KeyError as e:
+    messages.error(f'Missing required field: {e}')","Medium","Not Implemented"
+File System Operations,"FileNotFoundError, PermissionError, OSError","try:
+    with open(file_path, 'r') as f:
+        data = f.read()
+except FileNotFoundError:
+    messages.error('File not found')
+except PermissionError:
+    messages.error('Access denied to file')
+except OSError as e:
+    messages.error(f'File system error: {e}')","Medium","Not Implemented"
+CSRF Protection,"django.middleware.csrf.CsrfViewMiddleware, django.core.exceptions.SuspiciousOperation","try:
+    # Process form with CSRF token
+except SuspiciousOperation:
+    messages.error('Security violation: Invalid CSRF token')
+    return redirect('login')","High","Not Implemented"
+Session Management,"django.contrib.sessions.exceptions.SessionInterrupted, django.contrib.sessions.exceptions.InvalidSessionKey","try:
+    request.session['key'] = value
+except SessionInterrupted:
+    # Redirect to login page
+    return redirect('login')
+except InvalidSessionKey:
+    # Clear session and redirect
+    request.session.flush()
+    return redirect('login')","Medium","Not Implemented"
+JSON Processing,"json.JSONDecodeError, json.JSONEncodeError","try:
+    data = json.loads(request.body)
+except JSONDecodeError:
+    return JsonResponse({'error': 'Invalid JSON format'}, status=400)
+except JSONEncodeError:
+    return JsonResponse({'error': 'Error encoding response'}, status=500)","Medium","Not Implemented"
+Date/Time Processing,"ValueError (invalid dates), TypeError (wrong date format)","try:
+    date = datetime.strptime(date_str, '%Y-%m-%d')
+except ValueError:
+    messages.error('Invalid date format. Use YYYY-MM-DD')
+except TypeError:
+    messages.error('Date field must be a string')","Medium","Not Implemented"
+Memory/Performance,"MemoryError, TimeoutError","try:
+    # Process large file or dataset
+except MemoryError:
+    messages.error('File too large to process. Please use smaller file')
+except TimeoutError:
+    messages.error('Operation timed out. Please try again')","Low","Not Implemented"
+Network Connectivity,"requests.exceptions.ConnectionError, requests.exceptions.Timeout","try:
+    response = requests.get(url, timeout=30)
+except ConnectionError:
+    logging.error('Network connection failed')
+    # Use cached data or show offline message
+except Timeout:
+    logging.error('Request timed out')
+    # Retry or show timeout message","Low","Not Implemented"
+Form Validation,"django.forms.ValidationError, django.core.exceptions.ValidationError","try:
+    form = BSCForm(request.POST)
+    if form.is_valid():
+        form.save()
+    else:
+        for field, errors in form.errors.items():
+            messages.error(f'{field}: {errors}')
+except ValidationError as e:
+    messages.error(str(e))","Medium","Not Implemented"
+Database Transaction,"django.db.transaction.TransactionManagementError, django.db.utils.DatabaseError","try:
+    with transaction.atomic():
+        # Database operations
+        pass
+except TransactionManagementError:
+    logging.error('Transaction management error')
+    # Rollback and retry
+except DatabaseError:
+    logging.error('Database operation failed')
+    # Handle gracefully","High","Not Implemented"
+Static Files,"django.contrib.staticfiles.exceptions.IncorrectStaticFilesBackend, FileNotFoundError","try:
+    # Serve static files
+except IncorrectStaticFilesBackend:
+    logging.error('Static files backend configuration error')
+except FileNotFoundError:
+    logging.error('Static file not found')
+    # Use default or fallback","Low","Not Implemented"
+Email Operations,"django.core.mail.BadHeaderError, smtplib.SMTPException","try:
+    send_mail(subject, message, from_email, recipient_list)
+except BadHeaderError:
+    logging.error('Invalid email header')
+except SMTPException:
+    logging.error('Email sending failed')
+    # Queue for retry or notify admin","Low","Not Implemented" 

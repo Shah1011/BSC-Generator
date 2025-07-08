@@ -22,22 +22,7 @@
 </head>
 
 <body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow mb-8">
-        <div class="mx-[26px] flex justify-between items-center h-full">
-            <a href="/" class="text-2xl font-bold text-blue-700">BSC Generator</a>
-            <div class="flex gap-2 items-center space-x-6 p-6">
-                <p class="text-sm font-semibold bg-green-300 rounded-full px-3 py-1">{% if is_admin %}Admin{% elif is_employee %}Employee{% endif %}</p>
-                <div class="flex items-center gap-2">
-                    <img src="{% static 'assets/abstract.jpg' %}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-blue-400 object-cover" />
-                    <a href="{% url 'profile' %}" class="text-gray-700 hover:text-blue-600 font-semibold">{{ user.username }}</a>
-                </div>
-                {% if is_admin %}
-                <a href="{% url 'add_viewer' %}" class="text-blue-600 hover:text-blue-800 font-semibold">Viewers</a>
-                {% endif %}
-                <a href="{% url 'logout' %}" class="text-red-600 hover:underline font-semibold">Logout</a>
-            </div>
-        </div>
-    </nav>
+    {% include 'navbar.html' %}
     <div class="mx-[150px]">
             <p class="mb-4 font-bold text-xl text-gray-700"><span class="text-blue-600 hover:underline cursor-default">{{ organization.name }}'s</span> Balanced Scorecard</p>
             {% if is_admin %}
@@ -251,8 +236,9 @@
                         </button>
                         {% if is_admin %}
                         <div class="flex items-center gap-2 ml-2">
-                            <button id="toggle-bsc-detailed" type="button"
-                                class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded font-semibold">
+                            <button type="button"
+                                class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded font-semibold"
+                                onclick="showBatchDetailsModal('{{ batch.batch_id }}')">
                                 View Detailed BSC Entries
                             </button>
                             <form method="post" action="#" onsubmit="return false;">
@@ -377,6 +363,17 @@
         </div>
             {% endif %}
     </div>
+    <!-- Modal for Batch Details -->
+    <div id="batchDetailsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
+      <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-3xl relative"
+           style="max-width:900px; max-height:80vh; overflow-y:auto;">
+        <button onclick="closeBatchDetailsModal()" class="absolute top-2 right-2 text-gray-500 hover:text-red-600 text-2xl">&times;</button>
+        <h2 class="text-xl font-bold mb-4" id="modalBatchTitle">Batch Details</h2>
+        <div id="modalCharts" class="space-y-8"></div>
+      </div>
+    </div>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
     // Store original values for each batch
     const originalValues = {};
@@ -449,6 +446,88 @@
     
     function saveBatchEdit(batchId) {
         document.getElementById('batch-form-' + batchId).submit();
+    }
+
+    function showBatchDetailsModal(batchId) {
+        document.getElementById('batchDetailsModal').classList.remove('hidden');
+        document.getElementById('modalBatchTitle').textContent = 'Batch ' + batchId + ' Details';
+        document.getElementById('modalCharts').innerHTML = '<div class="text-center text-gray-500">Loading...</div>';
+        fetch(`/api/batch-details/?batch_id=${batchId}`)
+            .then(response => response.json())
+            .then(data => {
+                renderBatchCharts(data);
+            });
+    }
+
+    function closeBatchDetailsModal() {
+        document.getElementById('batchDetailsModal').classList.add('hidden');
+        document.getElementById('modalCharts').innerHTML = '';
+    }
+
+    function renderBatchCharts(data) {
+        const container = document.getElementById('modalCharts');
+        container.innerHTML = '';
+
+        // List of all perspectives in order
+        const perspectives = ['Financial', 'Customer', 'Internal', 'Learning & Growth'];
+
+        // Pie charts in a single flex row, no wrap
+        let pieChartsHTML = '<div style="display:flex;gap:32px;justify-content:center;flex-wrap:nowrap;overflow-x:auto;">';
+        for (const perspective of perspectives) {
+            const counts = data.perspective_data[perspective] || {good: 0, moderate: 0, bad: 0, unknown: 0};
+            const pieId = `pie-${perspective.replace(/\s/g, '')}`;
+            pieChartsHTML += `
+                <div style="text-align:center;">
+                    <h2 class="font-semibold mb-2" style="font-size:14px;">${perspective} Status</h2>
+                    <canvas id="${pieId}" width="160" height="160" style="max-width:160px;max-height:160px;"></canvas>
+                </div>
+            `;
+        }
+        pieChartsHTML += '</div>';
+
+        // Custom legend below all charts
+        pieChartsHTML += `
+            <div style="display:flex;justify-content:center;gap:24px;margin-top:16px;font-size:12px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="display:inline-block;width:18px;height:18px;background:#22c55e;border-radius:3px;"></span>
+                    <span>Good</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="display:inline-block;width:18px;height:18px;background:#facc15;border-radius:3px;"></span>
+                    <span>Moderate</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="display:inline-block;width:18px;height:18px;background:#ef4444;border-radius:3px;"></span>
+                    <span>Bad</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="display:inline-block;width:18px;height:18px;background:#a3a3a3;border-radius:3px;"></span>
+                    <span>Unknown</span>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = pieChartsHTML;
+
+        // Render all 4 pie charts without legends
+        for (const perspective of perspectives) {
+            const counts = data.perspective_data[perspective] || {good: 0, moderate: 0, bad: 0, unknown: 0};
+            const pieId = `pie-${perspective.replace(/\s/g, '')}`;
+            new Chart(document.getElementById(pieId), {
+                type: 'pie',
+                data: {
+                    labels: ['Good', 'Moderate', 'Bad', 'Unknown'],
+                    datasets: [{
+                        data: [counts.good, counts.moderate, counts.bad, counts.unknown],
+                        backgroundColor: ['#22c55e', '#facc15', '#ef4444', '#a3a3a3']
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
     }
     </script>
 </body>

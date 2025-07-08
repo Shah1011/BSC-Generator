@@ -8,20 +8,7 @@
 </head>
 
 <body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow mb-8">
-        <div class="mx-[26px] flex justify-between items-center h-full">
-            <a href="/" class="text-2xl font-bold text-blue-700">BSC Generator</a>
-            <div class="flex gap-2 items-center space-x-6 p-6">
-                <p class="text-sm font-semibold bg-green-300 rounded-full px-3 py-1">Admin</p>
-                <div class="flex items-center gap-2">
-                    <img src="{% static 'assets/abstract.jpg' %}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-blue-400 object-cover" />
-                    <a href="{% url 'profile' %}" class="text-gray-700 hover:text-blue-600 font-semibold">{{ user.username }}</a>
-                </div>
-                <a href="{% url 'logout' %}" class="text-red-600 hover:underline font-semibold">Logout</a>
-            </div>
-        </div>
-    </nav>
-
+    {% include 'navbar.html' %}
     <div class="mx-[150px]">
         <!-- Organization Viewers Summary -->
         {% if viewer_count > 0 %}

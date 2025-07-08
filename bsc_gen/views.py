@@ -8,10 +8,11 @@ from .models import Organization, UserProfile, BSCEntry, FinancialBSC, CustomerB
 import pandas as pd
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from collections import defaultdict
 from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
+import datetime
 
 def register(request):
     if request.method == 'POST':
@@ -116,7 +117,7 @@ def dashboard(request):
             batch_times[entry.batch_id] = entry.upload_time
 
     bsc_batches = []
-    for batch_id in sorted(batch_map.keys()):
+    for batch_id in sorted(batch_map.keys(), reverse=True):
         entries = []
         for bsc_item in batch_map[batch_id]:
             entry = bsc_item['entry']
@@ -177,7 +178,17 @@ def dashboard(request):
                         target = row.get('target', '')
                         actual = row.get('actual', '')
                         owner = row.get('owner', '')
-                        date = row.get('date', None)
+                        date_str = row.get('date', None)
+                        date_obj = None
+                        if date_str and str(date_str).strip():
+                            for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y"):
+                                try:
+                                    date_obj = datetime.datetime.strptime(str(date_str).strip(), fmt).date()
+                                    break
+                                except Exception:
+                                    continue
+                        else:
+                            date_obj = None
                         
                         # Create entry in the appropriate table based on perspective
                         if perspective.lower() == 'financial':
@@ -187,7 +198,7 @@ def dashboard(request):
                                 target=target,
                                 actual=actual,
                                 owner=owner,
-                                date=date,
+                                date=date_obj,
                                 batch_id=new_batch_id,
                                 organization=organization
                             )
@@ -198,7 +209,7 @@ def dashboard(request):
                                 target=target,
                                 actual=actual,
                                 owner=owner,
-                                date=date,
+                                date=date_obj,
                                 batch_id=new_batch_id,
                                 organization=organization
                             )
@@ -209,7 +220,7 @@ def dashboard(request):
                                 target=target,
                                 actual=actual,
                                 owner=owner,
-                                date=date,
+                                date=date_obj,
                                 batch_id=new_batch_id,
                                 organization=organization
                             )
@@ -220,7 +231,7 @@ def dashboard(request):
                                 target=target,
                                 actual=actual,
                                 owner=owner,
-                                date=date,
+                                date=date_obj,
                                 batch_id=new_batch_id,
                                 organization=organization
                             )
@@ -459,7 +470,9 @@ def profile_view(request):
                     'user': user,
                     'organization': organization,
                     'role': role,
-                    'has_bsc_data': has_bsc_data
+                    'has_bsc_data': has_bsc_data,
+                    'is_admin': role == 'admin',
+                    'is_employee': role == 'employee',
                 })
             
             # Validate new password
@@ -469,7 +482,9 @@ def profile_view(request):
                     'user': user,
                     'organization': organization,
                     'role': role,
-                    'has_bsc_data': has_bsc_data
+                    'has_bsc_data': has_bsc_data,
+                    'is_admin': role == 'admin',
+                    'is_employee': role == 'employee',
                 })
             
             if len(new_password) < 6:
@@ -478,7 +493,9 @@ def profile_view(request):
                     'user': user,
                     'organization': organization,
                     'role': role,
-                    'has_bsc_data': has_bsc_data
+                    'has_bsc_data': has_bsc_data,
+                    'is_admin': role == 'admin',
+                    'is_employee': role == 'employee',
                 })
             
             # Update password
@@ -492,7 +509,9 @@ def profile_view(request):
         'user': user,
         'organization': organization,
         'role': role,
-        'has_bsc_data': has_bsc_data
+        'has_bsc_data': has_bsc_data,
+        'is_admin': role == 'admin',
+        'is_employee': role == 'employee',
     })
 
 @login_required
@@ -566,6 +585,8 @@ def add_viewer(request):
         'organization': organization,
         'viewer_count': viewer_count,
         'viewers': viewers,
+        'is_admin': profile.role == 'admin' if 'profile' in locals() and profile else False,
+        'is_employee': profile.role == 'employee' if 'profile' in locals() and profile else False,
     })
 
 @login_required
@@ -612,3 +633,43 @@ def delete_viewer(request, viewer_id):
         messages.error(request, f'Error deleting viewer: {str(e)}')
 
     return redirect('add_viewer')
+
+@require_GET
+@login_required
+def batch_details_api(request):
+    batch_id = request.GET.get('batch_id')
+    if not batch_id:
+        return JsonResponse({'error': 'batch_id is required'}, status=400)
+
+    # Aggregate from all new models
+    model_map = {
+        'Financial': FinancialBSC,
+        'Customer': CustomerBSC,
+        'Internal': InternalBSC,
+        'Learning & Growth': LearningGrowthBSC,
+    }
+    perspectives = ['Financial', 'Customer', 'Internal', 'Learning & Growth']
+    perspective_data = {}
+
+    for perspective in perspectives:
+        model = model_map[perspective]
+        entries = model.objects.filter(batch_id=batch_id)
+        status_counts = {'good': 0, 'moderate': 0, 'bad': 0, 'unknown': 0}
+        for entry in entries:
+            try:
+                actual_val = float(entry.actual)
+                target_val = float(entry.target)
+                if actual_val >= target_val:
+                    status = 'good'
+                elif actual_val >= 0.8 * target_val:
+                    status = 'moderate'
+                else:
+                    status = 'bad'
+            except (ValueError, TypeError):
+                status = 'unknown'
+            status_counts[status] += 1
+        perspective_data[perspective] = status_counts
+
+    return JsonResponse({
+        'perspective_data': perspective_data,
+    })

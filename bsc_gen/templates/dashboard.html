@@ -337,6 +337,9 @@
                                 </tbody>
                             </table>
                         </form>
+                        <div class="mt-4 flex justify-end">
+                            <a href="{% url 'batch_report_pdf' batch.batch_id %}" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded font-semibold shadow">Generate PDF</a>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}

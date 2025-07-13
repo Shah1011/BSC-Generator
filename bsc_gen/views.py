@@ -13,6 +13,17 @@ from collections import defaultdict
 from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 import datetime
+from weasyprint import HTML
+from django.template.loader import render_to_string
+from django.http import HttpResponse, Http404
+import json
+import matplotlib.pyplot as plt
+import io
+import base64
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 def register(request):
     if request.method == 'POST':
@@ -712,3 +723,114 @@ def batch_details_api(request):
     return JsonResponse({
         'perspective_data': perspective_data,
     })
+
+@login_required
+def generate_batch_pdf(request, batch_id):
+    user = request.user
+    try:
+        profile = user.userprofile
+        organization = profile.organization
+    except Exception:
+        raise Http404("User profile not found")
+
+    # Gather all entries for this batch and organization
+    entries = []
+    perspectives = ['Financial', 'Customer', 'Internal', 'Learning & Growth']
+    for model, perspective in [
+        (FinancialBSC, 'Financial'),
+        (CustomerBSC, 'Customer'),
+        (InternalBSC, 'Internal'),
+        (LearningGrowthBSC, 'Learning & Growth'),
+    ]:
+        for entry in model.objects.filter(batch_id=batch_id, organization=organization):
+            entries.append({
+                'perspective': perspective,
+                'objective': entry.objective,
+                'measure': entry.measure,
+                'target': entry.target,
+                'actual': entry.actual,
+                'owner': entry.owner,
+                'date': entry.date,
+                'status': entry.get_status(),
+            })
+    if not entries:
+        raise Http404("Batch not found or no entries for this batch.")
+
+    # Group entries by perspective for table and chart
+    grouped = {p: [] for p in perspectives}
+    for e in entries:
+        grouped[e['perspective']].append(e)
+
+    # Prepare pie chart data (status counts per perspective)
+    pie_data = {}
+    for p in perspectives:
+        counts = {'good': 0, 'moderate': 0, 'bad': 0, 'unknown': 0}
+        for e in grouped[p]:
+            counts[e['status']] = counts.get(e['status'], 0) + 1
+        pie_data[p] = counts
+
+    # Generate pie chart images as base64 for each perspective
+    pie_chart_images = {}
+    for p in perspectives:
+        counts = pie_data[p]
+        labels = []
+        sizes = []
+        colors = []
+        color_map = {
+            'good': '#22c55e',
+            'moderate': '#facc15',
+            'bad': '#ef4444',
+            'unknown': '#a3a3a3',
+        }
+        for status in ['good', 'moderate', 'bad', 'unknown']:
+            if counts[status] > 0:
+                labels.append(f"{status.title()} ({counts[status]})")
+                sizes.append(counts[status])
+                colors.append(color_map[status])
+        if sum(sizes) == 0:
+            # No data, show empty chart
+            labels = ['No Data']
+            sizes = [1]
+            colors = ['#e5e7eb']
+        # High DPI, no outside labels, bold black percentages, white wedge edges
+        fig, ax = plt.subplots(figsize=(1.8, 1.8), dpi=200)
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            labels=None,  # No outside labels
+            colors=colors,
+            autopct=lambda pct: f'{pct:.0f}%' if pct > 0 else '',
+            startangle=90,
+            textprops={'fontsize': 11, 'color': 'black', 'weight': 'bold'},
+            wedgeprops={'edgecolor': 'white'}
+        )
+        ax.axis('equal')
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # Remove all padding
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', transparent=True, dpi=200)
+        plt.close(fig)
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        pie_chart_images[p] = img_base64
+
+    # Get batch_name from the first entry (if available)
+    batch_name = None
+    for model in [FinancialBSC, CustomerBSC, InternalBSC, LearningGrowthBSC]:
+        entry = model.objects.filter(batch_id=batch_id, organization=organization).first()
+        if entry and getattr(entry, 'batch_name', None):
+            batch_name = entry.batch_name
+            break
+    if not batch_name:
+        batch_name = f"Batch {batch_id}"
+
+    html_string = render_to_string('report_pdf.html', {
+        'batch_id': batch_id,
+        'batch_name': batch_name,
+        'grouped': grouped,
+        'pie_data_json': json.dumps(pie_data),
+        'perspectives': perspectives,
+        'pie_chart_images': pie_chart_images,
+    })
+    pdf = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="batch_{batch_id}_report.pdf"'
+    return response

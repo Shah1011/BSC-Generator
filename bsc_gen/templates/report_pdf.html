@@ -1,0 +1,62 @@
+{% load bsc_extras %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Batch Report {{ batch_name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        h1, h2 { color: #2563eb; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+        th, td { border: 1px solid #bbb; padding: 6px 10px; font-size: 13px; }
+        th { background: #e0e7ff; color: #1e40af; }
+        .pie-placeholder { width: 180px; height: 180px; background: #f3f4f6; color: #888; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 16px; margin-left: auto; margin-right: auto; }
+        .perspective-section { margin-bottom: 48px; }
+    </style>
+</head>
+<body>
+    <h1>Batch Report: {{ batch_name }}</h1>
+    {% for perspective in perspectives %}
+        {% with items=grouped|dict_get:perspective %}
+            {% if items %}
+            <div class="perspective-section">
+                <h2>{{ perspective }}</h2>
+                <div class="pie-placeholder">
+                    {% if pie_chart_images|dict_get:perspective %}
+                        <img src="data:image/png;base64,{{ pie_chart_images|dict_get:perspective }}" alt="Pie Chart" width="180" height="180" style="width:180px; height:180px; border-radius:50%; background:#fff;" />
+                    {% else %}
+                        No Chart
+                    {% endif %}
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Objective</th>
+                            <th>Measure</th>
+                            <th>Target</th>
+                            <th>Actual</th>
+                            <th>Owner</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for entry in items %}
+                        <tr>
+                            <td>{{ entry.objective }}</td>
+                            <td>{{ entry.measure }}</td>
+                            <td>{{ entry.target }}</td>
+                            <td>{{ entry.actual }}</td>
+                            <td>{{ entry.owner }}</td>
+                            <td>{% if entry.date %}{{ entry.date|date:"Y-m-d" }}{% endif %}</td>
+                            <td>{{ entry.status|title }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        {% endwith %}
+    {% endfor %}
+</body>
+</html> 

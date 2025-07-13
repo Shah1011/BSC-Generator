@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import register, login_view, logout_view, dashboard, bsc_data_api, bsc_detailed_view, delete_bsc_data, delete_batch, update_batch, profile_view, add_viewer, delete_viewer, batch_details_api
+from .views import register, login_view, logout_view, dashboard, bsc_data_api, bsc_detailed_view, delete_bsc_data, delete_batch, update_batch, profile_view, add_viewer, delete_viewer, batch_details_api, rename_batch
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -34,6 +34,7 @@ urlpatterns = [
     path('delete-bsc-data/', delete_bsc_data, name='delete_bsc_data'),
     path('delete-batch/<str:batch_id>/', delete_batch, name='delete_batch'),
     path('update-batch/<str:batch_id>/', update_batch, name='update_batch'),
+    path('rename-batch/<str:batch_id>/', rename_batch, name='rename_batch'),
     path('api/batch-details/', batch_details_api, name='batch_details_api'),
     path('', dashboard, name='home')
 ]

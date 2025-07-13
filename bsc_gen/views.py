@@ -119,9 +119,14 @@ def dashboard(request):
     bsc_batches = []
     for batch_id in sorted(batch_map.keys(), reverse=True):
         entries = []
+        batch_name = None
         for bsc_item in batch_map[batch_id]:
             entry = bsc_item['entry']
             perspective = bsc_item['perspective']
+            
+            # Get batch name from the first entry (they should all have the same batch_name)
+            if batch_name is None:
+                batch_name = entry.batch_name
             
             # Use the built-in status calculation method
             status = entry.get_status()
@@ -140,6 +145,7 @@ def dashboard(request):
             })
         bsc_batches.append({
             'batch_id': batch_id,
+            'batch_name': batch_name or f'Batch {batch_id}',
             'upload_time': batch_times[batch_id],
             'entries': entries
         })
@@ -633,6 +639,39 @@ def delete_viewer(request, viewer_id):
         messages.error(request, f'Error deleting viewer: {str(e)}')
 
     return redirect('add_viewer')
+
+@login_required
+@require_POST
+def rename_batch(request, batch_id):
+    """Rename a batch - only admins can do this"""
+    user = request.user
+    try:
+        profile = user.userprofile
+        if profile.role != 'admin':
+            return JsonResponse({'error': 'Only admins can rename batches'}, status=403)
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'error': 'User profile not found'}, status=403)
+    
+    new_name = request.POST.get('batch_name', '').strip()
+    if not new_name:
+        return JsonResponse({'error': 'Batch name cannot be empty'}, status=400)
+    
+    # Update all entries with this batch_id across all BSC tables
+    organization = profile.organization
+    
+    # Update FinancialBSC entries
+    FinancialBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    
+    # Update CustomerBSC entries
+    CustomerBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    
+    # Update InternalBSC entries
+    InternalBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    
+    # Update LearningGrowthBSC entries
+    LearningGrowthBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    
+    return JsonResponse({'success': True, 'new_name': new_name})
 
 @require_GET
 @login_required

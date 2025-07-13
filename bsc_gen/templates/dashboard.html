@@ -44,13 +44,18 @@
                     {% endfor %}
                 </ul>
                 {% endif %}
-                <form method="post" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-center gap-2">
+                <form id="bsc-upload-form" method="post" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-center gap-2">
                     {% csrf_token %}
-                    <input type="file" name="data_file" accept=".csv,.xlsx,.xls" required
-                        class="block w-full text-sm text-gray-700 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <button type="submit"
-                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-semibold">Upload</button>
+                    <div id="drop-area" style="border: 2px dashed #ccc; padding: 20px; text-align: center; cursor: pointer; width:100%" class="flex flex-col items-center mb-2">
+                        <img src="{% static 'assets/file.svg' %}" alt="File icon" class="w-16 h-16 mb-4" style="color: #2563eb;">
+                        <p>Drag & drop your CSV or Excel file here, or
+                            <a href="#" id="fileSelectBtn" class="text-blue-600 hover:text-blue-800 font-semibold">browse</a>
+                        </p>
+                        <input type="file" id="fileElem" name="data_file" accept=".csv,.xlsx,.xls" style="display:none;">
+                        <div id="fileLabel" class="mt-2 text-gray-700"></div>
+                    </div>
                 </form>
+                <div id="uploadStatus" class="mt-2 text-red-600"></div>
             </div>
             {% elif is_employee %}
             <div class="bg-white rounded-lg shadow p-6 mb-4">
@@ -230,10 +235,19 @@
             <div class="space-y-4">
                 {% for batch in bsc_batches %}
                 <div class="bg-white rounded-lg shadow p-4">
-                    <div class="w-full flex justify-between items-center mb-4">
-                        <button type="button" class="text-left font-bold text-blue-700 flex-1" onclick="this.parentElement.nextElementSibling.classList.toggle('hidden')">
-                            Batch {{ batch.batch_id }} — Uploaded: {{ batch.upload_time|date:"Y-m-d H:i" }}
-                        </button>
+                    <div class="w-full flex justify-between items-center mb-4 cursor-pointer select-none">
+                        <div class="flex-1"  id="batch-name-{{ batch.batch_id }}-toggle" onclick="toggleBatchTable(this)">
+                            <div class="flex items-center gap-1">
+                                <span class="font-bold text-blue-700">{{ batch.batch_name }}</span>
+                                {% if is_admin %}
+                                <button type="button" class="text-blue-600 hover:text-blue-800 p-1" title="Rename batch"
+                                    onclick="event.stopPropagation(); showRenameModal('{{ batch.batch_id }}', '{{ batch.batch_name }}')">
+                                    <img src="{% static 'assets/pen.svg' %}" alt="Rename" class="w-4 h-4 inline" style="display:inline;vertical-align:middle;filter:invert(17%) sepia(98%) saturate(747%) hue-rotate(200deg) brightness(95%) contrast(90%);">
+                                </button>
+                                {% endif %}
+                            </div>
+                            <div class="text-sm text-gray-500">Uploaded: {{ batch.upload_time|date:"Y-m-d H:i" }}</div>
+                        </div>
                         {% if is_admin %}
                         <div class="flex items-center gap-2 ml-2">
                             <button type="button"
@@ -370,6 +384,24 @@
         <button onclick="closeBatchDetailsModal()" class="absolute top-2 right-2 text-gray-500 hover:text-red-600 text-2xl">&times;</button>
         <h2 class="text-xl font-bold mb-4" id="modalBatchTitle">Batch Details</h2>
         <div id="modalCharts" class="space-y-8"></div>
+      </div>
+    </div>
+
+    <!-- Modal for Rename Batch -->
+    <div id="renameBatchModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
+      <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+        <button onclick="closeRenameModal()" class="absolute top-2 right-2 text-gray-500 hover:text-red-600 text-2xl">&times;</button>
+        <h2 class="text-xl font-bold mb-4">Rename Batch</h2>
+        <form id="renameBatchForm" class="space-y-4">
+          <div>
+            <label for="newBatchName" class="block text-sm font-medium text-gray-700 mb-2">New Batch Name:</label>
+            <input type="text" id="newBatchName" name="batch_name" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button type="button" onclick="closeRenameModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Rename</button>
+          </div>
+        </form>
       </div>
     </div>
     <!-- Chart.js CDN -->
@@ -529,7 +561,113 @@
             });
         }
     }
+
+    // Rename batch functionality
+    let currentBatchId = null;
+
+    function showRenameModal(batchId, currentName) {
+        currentBatchId = batchId;
+        document.getElementById('newBatchName').value = currentName;
+        document.getElementById('renameBatchModal').classList.remove('hidden');
+    }
+
+    function closeRenameModal() {
+        document.getElementById('renameBatchModal').classList.add('hidden');
+        currentBatchId = null;
+    }
+
+    document.getElementById('renameBatchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const newName = document.getElementById('newBatchName').value.trim();
+        
+        if (!newName) {
+            alert('Please enter a batch name');
+            return;
+        }
+
+        fetch(`/rename-batch/${currentBatchId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: `batch_name=${encodeURIComponent(newName)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the batch name in the UI
+                const div = document.getElementById(`batch-name-${currentBatchId}-toggle`);
+                if (div) {
+                    const span = div.querySelector('span.font-bold');
+                    if (span) {
+                        span.textContent = newName;
+                    }
+                }
+                closeRenameModal();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to rename batch'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error renaming batch');
+        });
+    });
+
+    // Toggle batch table visibility
+    function toggleBatchTable(el) {
+        // Find the parent .flex-1, then the parent .flex, then the next sibling (the table container)
+        let parent = el.closest('.flex-1').parentElement;
+        let tableDiv = parent.nextElementSibling;
+        if (tableDiv) {
+            tableDiv.classList.toggle('hidden');
+        }
+    }
     </script>
+    <script>
+const dropArea = document.getElementById('drop-area');
+const fileElem = document.getElementById('fileElem');
+const fileSelectBtn = document.getElementById('fileSelectBtn');
+const fileLabel = document.getElementById('fileLabel');
+const uploadStatus = document.getElementById('uploadStatus');
+const form = document.getElementById('bsc-upload-form');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, preventDefaults, false)
+});
+
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+dropArea.addEventListener('dragover', () => dropArea.classList.add('ring', 'ring-blue-400'));
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('ring', 'ring-blue-400'));
+dropArea.addEventListener('drop', handleDrop);
+
+dropArea.addEventListener('click', () => fileElem.click());
+fileSelectBtn.addEventListener('click', (e) => { e.preventDefault(); fileElem.click(); });
+
+fileElem.addEventListener('change', () => {
+  if (fileElem.files.length) {
+    fileLabel.textContent = fileElem.files[0].name;
+    // Automatically submit the form when file is selected
+    form.submit();
+  }
+});
+
+function handleDrop(e) {
+  let dt = e.dataTransfer;
+  let files = dt.files;
+  if (files.length) {
+    fileElem.files = files;
+    fileLabel.textContent = files[0].name;
+    // Automatically submit the form when file is dropped
+    form.submit();
+  }
+}
+</script>
 </body>
 
 </html>

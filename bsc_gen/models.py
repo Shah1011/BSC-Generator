@@ -28,6 +28,7 @@ class BSCBase(models.Model):
     owner = models.CharField(max_length=255, blank=True, null=True)
     date = models.DateField(blank=True, null=True)
     batch_id = models.CharField(max_length=10, blank=True, null=True)
+    batch_name = models.CharField(max_length=255, blank=True, null=True)
     upload_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True)
 

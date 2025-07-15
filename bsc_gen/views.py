@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from .models import Organization, UserProfile, BSCEntry, FinancialBSC, CustomerBSC, InternalBSC, LearningGrowthBSC
+from .models import Organization, UserProfile, FinancialBSC, CustomerBSC, InternalBSC, LearningGrowthBSC
 import pandas as pd
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -704,12 +704,14 @@ def batch_details_api(request):
     for perspective in perspectives:
         model = model_map[perspective]
         entries = model.objects.filter(batch_id=batch_id)
-        status_counts = {'good': 0, 'moderate': 0, 'bad': 0, 'unknown': 0}
+        status_counts = {'blue': 0, 'good': 0, 'moderate': 0, 'bad': 0, 'unknown': 0}
         for entry in entries:
             try:
                 actual_val = float(entry.actual)
                 target_val = float(entry.target)
-                if actual_val >= target_val:
+                if actual_val >= 1.2 * target_val:
+                    status = 'blue'
+                elif actual_val >= target_val:
                     status = 'good'
                 elif actual_val >= 0.8 * target_val:
                     status = 'moderate'
@@ -764,7 +766,7 @@ def generate_batch_pdf(request, batch_id):
     # Prepare pie chart data (status counts per perspective)
     pie_data = {}
     for p in perspectives:
-        counts = {'good': 0, 'moderate': 0, 'bad': 0, 'unknown': 0}
+        counts = {'blue': 0, 'good': 0, 'moderate': 0, 'bad': 0, 'unknown': 0}
         for e in grouped[p]:
             counts[e['status']] = counts.get(e['status'], 0) + 1
         pie_data[p] = counts
@@ -777,12 +779,13 @@ def generate_batch_pdf(request, batch_id):
         sizes = []
         colors = []
         color_map = {
+            'blue': '#2563eb',
             'good': '#22c55e',
             'moderate': '#facc15',
             'bad': '#ef4444',
             'unknown': '#a3a3a3',
         }
-        for status in ['good', 'moderate', 'bad', 'unknown']:
+        for status in ['blue', 'good', 'moderate', 'bad', 'unknown']:
             if counts[status] > 0:
                 labels.append(f"{status.title()} ({counts[status]})")
                 sizes.append(counts[status])

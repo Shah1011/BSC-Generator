@@ -39,7 +39,9 @@ class BSCBase(models.Model):
         try:
             actual_val = float(self.actual)
             target_val = float(self.target)
-            if actual_val >= target_val:
+            if actual_val >= 1.2 * target_val:
+                return 'blue'
+            elif actual_val >= target_val:
                 return 'good'
             elif actual_val >= 0.8 * target_val:
                 return 'moderate'
@@ -83,24 +85,3 @@ class LearningGrowthBSC(BSCBase):
 
     def __str__(self):
         return f"Learning & Growth - {self.objective}"
-
-# Keep the old model for backward compatibility during migration
-class BSCEntry(models.Model):
-    PERSPECTIVE_CHOICES = [
-        ('Financial', 'Financial'),
-        ('Customer', 'Customer'),
-        ('Internal', 'Internal'),
-        ('Learning & Growth', 'Learning & Growth'),
-    ]
-    perspective = models.CharField(max_length=32, choices=PERSPECTIVE_CHOICES)
-    objective = models.CharField(max_length=255)
-    measure = models.CharField(max_length=255)
-    target = models.CharField(max_length=255)
-    actual = models.CharField(max_length=255)
-    owner = models.CharField(max_length=255, blank=True, null=True)
-    date = models.DateField(blank=True, null=True)
-    batch_id = models.CharField(max_length=10, blank=True, null=True)
-    upload_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
-
-    def __str__(self):
-        return f"{self.perspective} - {self.objective}" 

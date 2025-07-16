@@ -20,6 +20,11 @@ import json
 import matplotlib.pyplot as plt
 import io
 import base64
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.core.mail import send_mail
+from django.conf import settings
 
 import matplotlib
 matplotlib.use('Agg')
@@ -837,3 +842,86 @@ def generate_batch_pdf(request, batch_id):
     response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="batch_{batch_id}_report.pdf"'
     return response
+
+
+# Forgot Password Views
+def forgot_password(request):
+    """Handle forgot password request"""
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        
+        try:
+            user = User.objects.get(email=email)
+            
+            # Generate password reset token
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            # Create reset link
+            reset_link = request.build_absolute_uri(
+                reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})
+            )
+            
+            # Send email
+            subject = 'Password Reset Request - BSC Generator'
+            message = f"""
+Hello {user.first_name or user.username},
+
+You requested a password reset for your BSC Generator account.
+
+Click the link below to reset your password:
+{reset_link}
+
+If you didn't request this password reset, please ignore this email.
+
+Best regards,
+BSC Generator Team
+            """
+            
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+            
+            messages.success(request, 'Password reset instructions have been sent to your email.')
+            return redirect('login')
+            
+        except User.DoesNotExist:
+            messages.error(request, 'No account found with that email address.')
+    
+    return render(request, 'forgot_password.html')
+
+
+def password_reset_confirm(request, uidb64, token):
+    """Handle password reset confirmation"""
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+    
+    if user is not None and default_token_generator.check_token(user, token):
+        if request.method == 'POST':
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            if new_password != confirm_password:
+                messages.error(request, 'Passwords do not match.')
+            elif len(new_password) < 6:
+                messages.error(request, 'Password must be at least 6 characters long.')
+            else:
+                user.set_password(new_password)
+                user.save()
+                messages.success(request, 'Your password has been reset successfully. Please log in with your new password.')
+                return redirect('login')
+        
+        return render(request, 'password_reset_confirm.html', {
+            'validlink': True,
+            'user': user
+        })
+    else:
+        messages.error(request, 'The password reset link is invalid or has expired.')
+        return render(request, 'password_reset_confirm.html', {'validlink': False})

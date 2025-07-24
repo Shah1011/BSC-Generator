@@ -30,6 +30,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+# Authentication Functions
 def register(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -45,6 +46,14 @@ def register(request):
             messages.error(request, 'Username already exists')
         elif User.objects.filter(email=email).exists():
             messages.error(request, 'Email already exists')
+        elif username.isdigit():
+            messages.error(request, 'Username cannot be only numbers. Please include letters.')
+        elif len(password) < 6:
+            messages.error(request, 'Password must be at least 6 characters long')
+        elif not any(char.isdigit() for char in password):
+            messages.error(request, 'Password must contain at least one number')
+        elif not any(char.isalpha() for char in password):
+            messages.error(request, 'Password must contain at least one letter')
         else:
             user = User.objects.create_user(username=username, email=email, password=password)
             organization, _ = Organization.objects.get_or_create(name=org_name)
@@ -74,6 +83,8 @@ def logout_view(request):
     logout(request)
     return redirect('login')
 
+
+# Core Dashboard Function
 @login_required(login_url='login')
 def dashboard(request):
     user = request.user
@@ -271,77 +282,14 @@ def dashboard(request):
         'bsc_batches': bsc_batches,
     })
 
-@login_required
-def bsc_data_api(request):
-    user = request.user
-    try:
-        organization = user.userprofile.organization
-    except UserProfile.DoesNotExist:
-        return JsonResponse({'error': 'No organization'}, status=400)
-    
-    # Get data from all perspective tables, filtered by organization
-    financial_entries = FinancialBSC.objects.filter(organization=organization)
-    customer_entries = CustomerBSC.objects.filter(organization=organization)
-    internal_entries = InternalBSC.objects.filter(organization=organization)
-    learning_entries = LearningGrowthBSC.objects.filter(organization=organization)
-    
-    data = []
-    
-    # Add financial entries
-    for e in financial_entries:
-        data.append({
-            'perspective': 'Financial',
-            'objective': e.objective,
-            'measure': e.measure,
-            'target': e.target,
-            'actual': e.actual,
-            'owner': e.owner,
-            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
-        })
-    
-    # Add customer entries
-    for e in customer_entries:
-        data.append({
-            'perspective': 'Customer',
-            'objective': e.objective,
-            'measure': e.measure,
-            'target': e.target,
-            'actual': e.actual,
-            'owner': e.owner,
-            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
-        })
-    
-    # Add internal entries
-    for e in internal_entries:
-        data.append({
-            'perspective': 'Internal',
-            'objective': e.objective,
-            'measure': e.measure,
-            'target': e.target,
-            'actual': e.actual,
-            'owner': e.owner,
-            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
-        })
-    
-    # Add learning & growth entries
-    for e in learning_entries:
-        data.append({
-            'perspective': 'Learning & Growth',
-            'objective': e.objective,
-            'measure': e.measure,
-            'target': e.target,
-            'actual': e.actual,
-            'owner': e.owner,
-            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
-        })
-    
-    return JsonResponse({'entries': data})
 
 @login_required
 def bsc_detailed_view(request):
     bsc_entries = BSCEntry.objects.all()
     return render(request, 'bsc_detailed.html', {'bsc_entries': bsc_entries})
 
+
+# Data Management Functions
 @login_required
 @require_POST
 def delete_bsc_data(request):
@@ -440,6 +388,32 @@ def update_batch(request, batch_id):
     messages.success(request, f'Batch {batch_id} updated successfully. {updated_count} entries updated.')
     return redirect('dashboard')
 
+@login_required
+@require_POST
+def rename_batch(request, batch_id):
+    """Rename a batch - only admins can do this"""
+    user = request.user
+    try:
+        profile = user.userprofile
+        if profile.role != 'admin':
+            return JsonResponse({'error': 'Only admins can rename batches'}, status=403)
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'error': 'User profile not found'}, status=403)
+    
+    new_name = request.POST.get('batch_name', '').strip()
+    if not new_name:
+        return JsonResponse({'error': 'Batch name cannot be empty'}, status=400)
+    
+    # Update all entries with this batch_id across all BSC tables
+    organization = profile.organization
+    FinancialBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    CustomerBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    InternalBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    LearningGrowthBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    
+    return JsonResponse({'success': True, 'new_name': new_name})
+
+# User Profile Management
 @login_required
 def profile_view(request):
     user = request.user
@@ -656,38 +630,73 @@ def delete_viewer(request, viewer_id):
 
     return redirect('add_viewer')
 
+# API and Data Functions
+
 @login_required
-@require_POST
-def rename_batch(request, batch_id):
-    """Rename a batch - only admins can do this"""
+def bsc_data_api(request):
     user = request.user
     try:
-        profile = user.userprofile
-        if profile.role != 'admin':
-            return JsonResponse({'error': 'Only admins can rename batches'}, status=403)
+        organization = user.userprofile.organization
     except UserProfile.DoesNotExist:
-        return JsonResponse({'error': 'User profile not found'}, status=403)
+        return JsonResponse({'error': 'No organization'}, status=400)
     
-    new_name = request.POST.get('batch_name', '').strip()
-    if not new_name:
-        return JsonResponse({'error': 'Batch name cannot be empty'}, status=400)
+    # Get data from all perspective tables, filtered by organization
+    financial_entries = FinancialBSC.objects.filter(organization=organization)
+    customer_entries = CustomerBSC.objects.filter(organization=organization)
+    internal_entries = InternalBSC.objects.filter(organization=organization)
+    learning_entries = LearningGrowthBSC.objects.filter(organization=organization)
     
-    # Update all entries with this batch_id across all BSC tables
-    organization = profile.organization
+    data = []
     
-    # Update FinancialBSC entries
-    FinancialBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    # Add financial entries
+    for e in financial_entries:
+        data.append({
+            'perspective': 'Financial',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
     
-    # Update CustomerBSC entries
-    CustomerBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    # Add customer entries
+    for e in customer_entries:
+        data.append({
+            'perspective': 'Customer',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
     
-    # Update InternalBSC entries
-    InternalBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    # Add internal entries
+    for e in internal_entries:
+        data.append({
+            'perspective': 'Internal',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
     
-    # Update LearningGrowthBSC entries
-    LearningGrowthBSC.objects.filter(batch_id=batch_id, organization=organization).update(batch_name=new_name)
+    # Add learning & growth entries
+    for e in learning_entries:
+        data.append({
+            'perspective': 'Learning & Growth',
+            'objective': e.objective,
+            'measure': e.measure,
+            'target': e.target,
+            'actual': e.actual,
+            'owner': e.owner,
+            'date': e.date.strftime('%Y-%m-%d') if e.date else ''
+        })
     
-    return JsonResponse({'success': True, 'new_name': new_name})
+    return JsonResponse({'entries': data})
 
 @require_GET
 @login_required
@@ -731,6 +740,7 @@ def batch_details_api(request):
         'perspective_data': perspective_data,
     })
 
+# PDF Report Generation
 @login_required
 def generate_batch_pdf(request, batch_id):
     user = request.user
@@ -844,7 +854,7 @@ def generate_batch_pdf(request, batch_id):
     return response
 
 
-# Forgot Password Views
+# Forgot Password Function
 def forgot_password(request):
     """Handle forgot password request"""
     if request.method == 'POST':
